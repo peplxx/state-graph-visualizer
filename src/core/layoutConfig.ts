@@ -1,4 +1,4 @@
-export type LayoutName = 'dagre' | 'fcose' | 'breadthfirst' | 'grid';
+export type LayoutName = 'dagre';
 
 export function buildLayoutOptions(
   name: LayoutName,
@@ -18,34 +18,7 @@ export function buildLayoutOptions(
       animate: false,
       // extra left padding so release arcs don't overlap nodes
       padding: 120,
-    },
-    fcose: {
-      name:           'fcose',
-      quality:        nodeCount > 2000 ? 'draft' : 'default',
-      randomize:      false,
-      animate:        false,
-      padding:        80,
-      nodeSeparation: 75 * sf,
-      idealEdgeLength: 120 * sf,
-      numIter:        nodeCount > 5000 ? 800 : 2500,
-      tile:           true,
-    },
-    breadthfirst: {
-      name:          'breadthfirst',
-      directed:      true,
-      animate:       false,
-      spacingFactor: sf,
-      padding:       80,
-      avoidOverlap:  true,
-      maximal:       true,
-    },
-    grid: {
-      name:          'grid',
-      animate:       false,
-      padding:       80,
-      spacingFactor: sf,
-      avoidOverlap:  true,
-    },
+    }
   };
 
   return { ...bases[name], ...(overrides ?? {}) };

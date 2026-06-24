@@ -52,7 +52,7 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const graph = parseFile(ev.target!.result as string, file.name);
+        const graph = parseFile(ev.target!.result as string);
         handleLoad.current(graph, file.name);
       } catch (err) {
         setError((err as Error).message);
@@ -111,14 +111,9 @@ export default function App() {
                   a.download = (filename.replace(/\.\w+$/, '') || 'graph') + '.png';
                   a.click();
                 }}
-                onLayoutChange={(l) => {
-                  setLayout(l);
-                  viewerRef.current?.runLayout(l);
-                }}
                 onSearch={(q) => {
                   if (q.trim()) viewerRef.current?.focusNode(q.trim());
                 }}
-                currentLayout={layout}
                 stats={stats}
               />
 

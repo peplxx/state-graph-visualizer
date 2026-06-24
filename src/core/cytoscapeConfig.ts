@@ -12,7 +12,7 @@ export const stylesheet: StylesheetStyle[] = [
       'text-valign':      'center',
       'text-halign':      'center',
       'font-family':      '"JetBrains Mono", "Fira Mono", monospace',
-      'font-size':        '11px',
+      'font-size':        '14px',
       'color':            '#1A1A1A',
       'text-wrap':        'wrap',
       'width':            'data(width)',
@@ -66,7 +66,7 @@ export const stylesheet: StylesheetStyle[] = [
   },
   {
     // Base style only — control points set dynamically in routeReleaseArcs()
-    selector: 'edge[type = "job-release"]',
+    selector: 'edge[type = "loop"]',
     style: {
       'curve-style':        'unbundled-bezier',
       'target-arrow-shape': 'triangle',

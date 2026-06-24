@@ -149,7 +149,6 @@ function drawArcs(
 
   arcData.sort((a, b) => b.span - a.span);
 
-  // KEY FIX: Calculate left boundary based on ALL nodes in the graph
   let minX = Infinity;
   const allNodes = cy.nodes();
   for (let i = 0; i < allNodes.length; i++) {
@@ -301,16 +300,14 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
       });
       cyRef.current = cy;
 
-      // Hide job-release edges in Cytoscape, but keep them in the graph 
+      // Hide loop edges in Cytoscape, but keep them in the graph 
       cy.style()
-        .selector('edge[type = "job-release"]')
+        .selector('edge[type = "loop"]')
         .style({ 'display': 'none' })
         .update();
 
       cy.on('render', redrawArcs);
       cy.on('pan zoom resize', redrawArcs);
-      
-      // KEY FIX: Redraw immediately when any node is dragged or repositioned
       cy.on('position', 'node', redrawArcs);
 
       cy.on('mouseover', 'node', (evt) => {
@@ -370,84 +367,89 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
       const cy = cyRef.current;
       if (!cy || !graphData) return;
 
-      selectedIdRef.current = null;
-      arcsRef.current       = [];
-      clearSelection(cy);
+      try {
+        selectedIdRef.current = null;
+        arcsRef.current       = [];
+        clearSelection(cy);
 
-      if (canvasRef.current) {
-        const ctx = canvasRef.current.getContext('2d');
-        ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      }
-
-      cy.startBatch();
-      cy.elements().remove();
-
-      const ranks = computeBFSRanks(graphData.nodes, graphData.edges);
-
-      const nodeElements: cytoscape.ElementDefinition[] = [];
-      for (const node of graphData.nodes) {
-        const label             = buildNodeLabel(node.tasks);
-        const { width, height } = estimateNodeSize(node.tasks);
-        nodeElements.push({
-          group: 'nodes',
-          data: {
-            id: node.id, label,
-            tasks: node.tasks,
-            isInitial: node.isInitial ?? false,
-            width, height,
-            rank: ranks.get(node.id) ?? 0,
-          },
-        });
-      }
-
-      const allEdgeDefs: cytoscape.ElementDefinition[] = [];
-      const releaseArcList: ReleaseArc[] = [];
-
-      for (const edge of graphData.edges) {
-        allEdgeDefs.push({
-          group: 'edges',
-          data: {
-            id:     edge.id ?? `${edge.source}-${edge.target}`,
-            source: edge.source,
-            target: edge.target,
-            type:   edge.type,
-            label:  edge.label ?? '',
-          },
-        });
-        if (edge.type === 'job-release') {
-          releaseArcList.push({ srcId: edge.source, tgtId: edge.target });
+        if (canvasRef.current) {
+          const ctx = canvasRef.current.getContext('2d');
+          ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
         }
+
+        cy.startBatch();
+        cy.elements().remove();
+
+        const ranks = computeBFSRanks(graphData.nodes, graphData.edges);
+
+        const nodeElements: cytoscape.ElementDefinition[] = [];
+        for (const node of graphData.nodes) {
+          const label             = buildNodeLabel(node.tasks);
+          const { width, height } = estimateNodeSize(node.tasks);
+          nodeElements.push({
+            group: 'nodes',
+            data: {
+              id: node.id, label,
+              tasks: node.tasks,
+              isInitial: node.isInitial ?? false,
+              width, height,
+              rank: ranks.get(node.id) ?? 0,
+            },
+          });
+        }
+
+        const allEdgeDefs: cytoscape.ElementDefinition[] = [];
+        const releaseArcList: ReleaseArc[] = [];
+
+        for (const edge of graphData.edges) {
+          allEdgeDefs.push({
+            group: 'edges',
+            data: {
+              id:     edge.id ?? `${edge.source}-${edge.target}`,
+              source: edge.source,
+              target: edge.target,
+              type:   edge.type,
+              label:  edge.label ?? '',
+            },
+          });
+          if (edge.type === 'loop') {
+            releaseArcList.push({ srcId: edge.source, tgtId: edge.target });
+          }
+        }
+
+        arcsRef.current = releaseArcList;
+
+        cy.add([...nodeElements, ...allEdgeDefs]);
+        cy.endBatch();
+
+        const layoutName = (graphData.layout?.name ?? layout) as LayoutName;
+        
+        // Removed graphData.layout?.options as requested
+        const layoutOpts = buildLayoutOptions(layoutName, graphData.nodes.length);
+
+        const layoutEles = cy.elements().filter(el => el.isNode() || el.data('type') !== 'loop');
+
+        const lo = cy.layout(
+          layoutName === 'dagre'
+            ? { ...layoutOpts, name: 'dagre', eles: layoutEles, ranker: 'longest-path', rank: (n: any) => n.data('rank') }
+            : { ...layoutOpts, name: layoutName, eles: layoutEles }
+        );
+
+        lo.on('layoutstop', () => {
+          cy.fit(undefined, 120);
+          requestAnimationFrame(redrawArcs);
+        });
+
+        lo.run();
+
+        onStatsChangeRef.current?.({
+          nodes: graphData.nodes.length,
+          edges: graphData.edges.length,
+        });
+      } catch (error) {
+        console.error("Failed to load graph into Cytoscape:", error);
+        cy.elements().remove();
       }
-
-      arcsRef.current = releaseArcList;
-
-      cy.add([...nodeElements, ...allEdgeDefs]);
-      cy.endBatch();
-
-      const layoutName = (graphData.layout?.name ?? layout) as LayoutName;
-      const layoutOpts = buildLayoutOptions(
-        layoutName, graphData.nodes.length, graphData.layout?.options
-      );
-
-      const layoutEles = cy.elements().filter(el => el.isNode() || el.data('type') !== 'job-release');
-
-      const lo = cy.layout(
-        layoutName === 'dagre'
-          ? { ...layoutOpts, name: 'dagre', eles: layoutEles, ranker: 'longest-path', rank: (n: any) => n.data('rank') }
-          : { ...layoutOpts, name: layoutName, eles: layoutEles }
-      );
-
-      lo.on('layoutstop', () => {
-        cy.fit(undefined, 120);
-        requestAnimationFrame(redrawArcs);
-      });
-
-      lo.run();
-
-      onStatsChangeRef.current?.({
-        nodes: graphData.nodes.length,
-        edges: graphData.edges.length,
-      });
     }, [graphData, layout]);
 
     // ── Imperative handle ─────────────────────────────────────────────────────
@@ -492,7 +494,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
       runLayout(name: LayoutName) {
         const cy = cyRef.current; if (!cy) return;
         
-        const layoutEles = cy.elements().filter(el => el.isNode() || el.data('type') !== 'job-release');
+        const layoutEles = cy.elements().filter(el => el.isNode() || el.data('type') !== 'loop');
         const lo = cy.layout({ ...buildLayoutOptions(name, cy.nodes().length), name, eles: layoutEles });
         
         lo.on('layoutstop', () => {

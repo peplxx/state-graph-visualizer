@@ -21,47 +21,60 @@ function normalizeTasks(raw: unknown): NodeTaskDisplay[] {
   }));
 }
 
-function normalizeNode(raw: unknown): GraphNode {
-  const n = raw as Record<string, unknown>;
-  return {
-    id: String(n.id),
-    tasks: normalizeTasks(n.tasks),
-    isInitial: Boolean(n.initial ?? n.isInitial ?? false),
-  };
-}
+export function parseYAML(content: string): GraphFile {
+  const raw = yaml.load(content) as Record<string, any>;
+  
+  if (!raw || !Array.isArray(raw.nodes)) {
+    return { nodes: [], edges: [] };
+  }
 
-function normalizeEdge(raw: unknown, idx: number): GraphEdge {
-  const e = raw as Record<string, unknown>;
-  return {
-    id:     e.id ? String(e.id) : `e${idx}`,
-    source: String(e.source),
-    target: String(e.target),
-    type:   e.type === 'job-release' ? 'job-release' : 'normal',
-    label:  e.label ? String(e.label) : undefined,
-  };
-}
+  const nodes: GraphNode[] = [];
+  const edges: GraphEdge[] = [];
+  let edgeIdx = 0;
 
-function fromRaw(raw: Record<string, unknown>): GraphFile {
+  for (const rawNode of raw.nodes) {
+    const id = String(rawNode.id);
+    
+    // 1. Normalize node
+    nodes.push({
+      id,
+      tasks: normalizeTasks(rawNode.tasks),
+      isInitial: Boolean(rawNode.initial ?? rawNode.isInitial ?? false),
+    });
+
+    // 2. Process childrens 
+    if (Array.isArray(rawNode.childrens)) {
+      for (const targetId of rawNode.childrens) {
+        edges.push({
+          id: `e${edgeIdx++}`,
+          source: id,
+          target: String(targetId),
+          type: 'normal',
+        });
+      }
+    }
+
+    // 3. Process loops
+    if (Array.isArray(rawNode.loop)) {
+      for (const targetId of rawNode.loop) {
+        edges.push({
+          id: `e${edgeIdx++}`,
+          source: id,
+          target: String(targetId),
+          type: 'loop',
+        });
+      }
+    }
+  }
+
   return {
     system: raw.system as GraphFile['system'],
-    nodes:  ((raw.nodes ?? []) as unknown[]).map(normalizeNode),
-    edges:  ((raw.edges ?? []) as unknown[]).map(normalizeEdge),
-    layout: raw.layout as GraphFile['layout'],
+    nodes,
+    edges,
+    layout: (raw.layout || 'dagre') as GraphFile['layout'],
   };
 }
 
-export function parseYAML(content: string): GraphFile {
-  const raw = yaml.load(content) as Record<string, unknown>;
-  return fromRaw(raw);
-}
-
-export function parseJSON(content: string): GraphFile {
-  const raw = JSON.parse(content) as Record<string, unknown>;
-  return fromRaw(raw);
-}
-
-export function parseFile(content: string, filename: string): GraphFile {
-  const ext = filename.split('.').pop()?.toLowerCase();
-  if (ext === 'json') return parseJSON(content);
+export function parseFile(content: string): GraphFile {
   return parseYAML(content);
 }

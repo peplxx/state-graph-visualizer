@@ -6,22 +6,13 @@ interface Props {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onExport: () => void;
-  onLayoutChange: (l: LayoutName) => void;
   onSearch: (q: string) => void;
-  currentLayout: LayoutName;
   stats: { nodes: number; edges: number } | null;
 }
 
-const LAYOUTS: { value: LayoutName; label: string }[] = [
-  { value: 'dagre',        label: 'Hierarchical' },
-  { value: 'breadthfirst', label: 'BFS Tree'     },
-  { value: 'fcose',        label: 'Force-Directed'},
-  { value: 'grid',         label: 'Grid'          },
-];
-
 export const Toolbar: React.FC<Props> = ({
   onFit, onZoomIn, onZoomOut, onExport,
-  onLayoutChange, onSearch, currentLayout, stats,
+  onSearch, stats,
 }) => (
   <div className="toolbar">
     <input
@@ -30,26 +21,12 @@ export const Toolbar: React.FC<Props> = ({
       placeholder="Find node by ID…"
       onChange={(e) => onSearch(e.target.value)}
     />
-
-    <div className="tb-sep" />
-
-    <label className="tb-label">Layout</label>
-    <select
-      className="layout-select"
-      value={currentLayout}
-      onChange={(e) => onLayoutChange(e.target.value as LayoutName)}
-    >
-      {LAYOUTS.map((l) => (
-        <option key={l.value} value={l.value}>{l.label}</option>
-      ))}
-    </select>
-
     <div className="tb-sep" />
 
     <button className="tb-btn" onClick={onZoomIn}  title="Zoom in">＋</button>
     <button className="tb-btn" onClick={onZoomOut} title="Zoom out">－</button>
     <button className="tb-btn" onClick={onFit}     title="Fit all">⤢</button>
-    <button className="tb-btn" onClick={onExport}  title="Export PNG">↓ PNG</button>
+    <button className="tb-btn" onClick={onExport}  title="Export PNG">PNG</button>
 
     {stats && (
       <span className="tb-stats">

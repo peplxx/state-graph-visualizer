@@ -1,12 +1,3 @@
-# ═══════════════════════════════════════════════════════════════════════════════
-# State Transition Graph — exactly matching reference picture
-# τ₁ = (2,5)   τ₂ = (3,7)   m = 1
-#
-# Node label format:
-#   row 1 = τ₁ state (c,d) + optional release indicator
-#   row 2 = τ₂ state (c,d) + optional release indicator
-# ═══════════════════════════════════════════════════════════════════════════════
-
 system:
   description: "EDF feasibility graph – τ₁=(2,5) τ₂=(3,7) m=1"
   m: 1
@@ -14,358 +5,275 @@ system:
     - { c: 2, d: 5, name: "τ₁" }
     - { c: 3, d: 7, name: "τ₂" }
 
-layout:
-  name: dagre
-  options:
-    rankDir: TB
-    rankSep: 80
-    nodeSep: 48
-
-# ── NODES ──────────────────────────────────────────────────────────────────────
 nodes:
-
-  # ── Level 0 ──────────────────────────────────────────────────────────────────
   - id: n00
     initial: true
     tasks:
-      - { c: 0, d: 0, release: none }   # τ₁ (0,0)
-      - { c: 0, d: 0, release: none }   # τ₂ (0,0)
+      - { c: 0, d: 0, release: none }
+      - { c: 0, d: 0, release: none }
+    childrens: [n10, n11, n12]
 
-  # ── Level 1 ──────────────────────────────────────────────────────────────────
-  # Left child: τ₁ releases job (2,5)↑, τ₂ idle
   - id: n10
     tasks:
-      - { c: 2, d: 5, release: up   }   # τ₁ (2,5)↑
-      - { c: 0, d: 0, release: none }   # τ₂ (0,0)
+      - { c: 2, d: 5, release: up   }
+      - { c: 0, d: 0, release: none }
+    childrens: [n20, n21]
 
-  # Middle child: both idle  (0,0)/(0,0) — appears in middle column
   - id: n11
     tasks:
-      - { c: 0, d: 0, release: none }   # τ₁ (0,0)
-      - { c: 3, d: 7, release: up   }   # τ₂ (3,7)↑
+      - { c: 0, d: 0, release: none }
+      - { c: 3, d: 7, release: up   }
+    childrens: [n22]
 
-  # Right child: both release simultaneously
   - id: n12
     tasks:
-      - { c: 2, d: 5, release: up   }   # τ₁ (2,5)↑
-      - { c: 3, d: 7, release: up   }   # τ₂ (3,7)↑
+      - { c: 2, d: 5, release: up   }
+      - { c: 3, d: 7, release: up   }
+    childrens: [n22, n23, n24]
 
-  # ── Level 2 ──────────────────────────────────────────────────────────────────
-  # Children of n10 (left branch)
   - id: n20
     tasks:
-      - { c: 1, d: 4, release: none }   # τ₁ (1,4)
-      - { c: 0, d: 0, release: none }   # τ₂ (0,0)
+      - { c: 1, d: 4, release: none }
+      - { c: 0, d: 0, release: none }
+    childrens: [n30, n31]
 
   - id: n21
     tasks:
-      - { c: 1, d: 4, release: none }   # τ₁ (1,4)
-      - { c: 3, d: 7, release: up   }   # τ₂ (3,7)↑
+      - { c: 1, d: 4, release: none }
+      - { c: 3, d: 7, release: up   }
+    childrens: [n31, n32]
 
-  # Child of n11 (middle branch)
   - id: n22
     tasks:
-      - { c: 0, d: 0, release: none }   # τ₁ (0,0)
-      - { c: 2, d: 6, release: none }   # τ₂ (2,6)
+      - { c: 0, d: 0, release: none }
+      - { c: 2, d: 6, release: none }
+    childrens: [n33, n34]
 
-  # Children of n12 (right branch)
   - id: n23
     tasks:
-      - { c: 2, d: 5, release: up   }   # τ₁ (2,5)↑
-      - { c: 2, d: 6, release: none }   # τ₂ (2,6)
+      - { c: 2, d: 5, release: up   }
+      - { c: 2, d: 6, release: none }
+    childrens: [n35]
 
   - id: n24
     tasks:
-      - { c: 1, d: 4, release: none }   # τ₁ (1,4)
-      - { c: 3, d: 6, release: none }   # τ₂ (3,6)
+      - { c: 1, d: 4, release: none }
+      - { c: 3, d: 6, release: none }
+    childrens: [n36]
 
-  # ── Level 3 ──────────────────────────────────────────────────────────────────
-  # From n20
   - id: n30
     tasks:
-      - { c: 0, d: 3, release: down }   # τ₁ (0,3)↓
-      - { c: 0, d: 0, release: none }   # τ₂ (0,0)
+      - { c: 0, d: 3, release: down }
+      - { c: 0, d: 0, release: none }
+    childrens: [n40]
 
-  # From n20 and n21
   - id: n31
     tasks:
-      - { c: 0, d: 3, release: down }   # τ₁ (0,3)↓
-      - { c: 3, d: 7, release: up   }   # τ₂ (3,7)↑
+      - { c: 0, d: 3, release: down }
+      - { c: 3, d: 7, release: up   }
+    childrens: [n41]
 
-  # From n21
   - id: n32
     tasks:
-      - { c: 0, d: 3, release: down }   # τ₁ (0,3)↓
-      - { c: 3, d: 6, release: none }   # τ₂ (3,6)
+      - { c: 0, d: 3, release: down }
+      - { c: 3, d: 6, release: none }
+    childrens: [n42]
 
-  # From n22 — middle section
   - id: n33
     tasks:
-      - { c: 0, d: 0, release: none }   # τ₁ (0,0)
-      - { c: 1, d: 5, release: none }   # τ₂ (1,5)
+      - { c: 0, d: 0, release: none }
+      - { c: 1, d: 5, release: none }
+    childrens: [n43]
 
-  # From n23 — right-middle
   - id: n34
     tasks:
-      - { c: 2, d: 5, release: up   }   # τ₁ (2,5)↑
-      - { c: 1, d: 5, release: none }   # τ₂ (1,5)
+      - { c: 2, d: 5, release: up   }
+      - { c: 1, d: 5, release: none }
+    childrens: [n44]
 
   - id: n35
     tasks:
-      - { c: 1, d: 4, release: none }   # τ₁ (1,4)
-      - { c: 2, d: 5, release: none }   # τ₂ (2,5)
+      - { c: 1, d: 4, release: none }
+      - { c: 2, d: 5, release: none }
+    childrens: [n45, n46]
 
-  # From n24 — far right
   - id: n36
     tasks:
-      - { c: 0, d: 3, release: down }   # τ₁ (0,3)↓
-      - { c: 3, d: 5, release: none }   # τ₂ (3,5)
+      - { c: 0, d: 3, release: down }
+      - { c: 3, d: 5, release: none }
+    childrens: [n47]
 
-  # ── Level 4 ──────────────────────────────────────────────────────────────────
-  # From n30
   - id: n40
     tasks:
-      - { c: 0, d: 2, release: none }   # τ₁ (0,2)
-      - { c: 0, d: 0, release: none }   # τ₂ (0,0)
+      - { c: 0, d: 2, release: none }
+      - { c: 0, d: 0, release: none }
+    childrens: [n50]
 
-  # From n31
   - id: n41
     tasks:
-      - { c: 0, d: 2, release: none }   # τ₁ (0,2)
-      - { c: 3, d: 7, release: up   }   # τ₂ (3,7)↑
+      - { c: 0, d: 2, release: none }
+      - { c: 3, d: 7, release: up   }
+    childrens: [n51]
 
-  # From n32
   - id: n42
     tasks:
-      - { c: 0, d: 2, release: none }   # τ₁ (0,2)
-      - { c: 2, d: 6, release: none }   # τ₂ (2,6)
+      - { c: 0, d: 2, release: none }
+      - { c: 2, d: 6, release: none }
+    childrens: [n52]
 
-  # From n33 middle section
   - id: n43
     tasks:
-      - { c: 0, d: 0, release: none }   # τ₁ (0,0)
-      - { c: 0, d: 4, release: down }   # τ₂ (0,4)↓
+      - { c: 0, d: 0, release: none }
+      - { c: 0, d: 4, release: down }
+    childrens: [n53]
 
-  # From n34
   - id: n44
     tasks:
-      - { c: 2, d: 5, release: up   }   # τ₁ (2,5)↑
-      - { c: 0, d: 4, release: down }   # τ₂ (0,4)↓
+      - { c: 2, d: 5, release: up   }
+      - { c: 0, d: 4, release: down }
+    childrens: [n54]
 
-  # From n35
   - id: n45
     tasks:
-      - { c: 1, d: 4, release: none }   # τ₁ (1,4)
-      - { c: 0, d: 4, release: down }   # τ₂ (0,4)↓  (picture shows ↓ on τ₂)
+      - { c: 1, d: 4, release: none }
+      - { c: 0, d: 4, release: down }
+    childrens: [n55]
 
   - id: n46
     tasks:
-      - { c: 0, d: 3, release: down }   # τ₁ (0,3)↓
-      - { c: 2, d: 4, release: none }   # τ₂ (2,4)
+      - { c: 0, d: 3, release: down }
+      - { c: 2, d: 4, release: none }
+    childrens: [n56, n57]
 
-  # From n36 far right
   - id: n47
     tasks:
-      - { c: 0, d: 2, release: none }   # τ₁ (0,2)
-      - { c: 2, d: 4, release: none }   # τ₂ (2,4)
+      - { c: 0, d: 2, release: none }
+      - { c: 2, d: 4, release: none }
+    childrens: [n58]
 
-  # ── Level 5 ──────────────────────────────────────────────────────────────────
-  # From n40
   - id: n50
     tasks:
-      - { c: 0, d: 1, release: none }   # τ₁ (0,1)
-      - { c: 0, d: 0, release: none }   # τ₂ (0,0)
+      - { c: 0, d: 1, release: none }
+      - { c: 0, d: 0, release: none }
+    childrens: [n60]
 
-  # From n41
   - id: n51
     tasks:
-      - { c: 0, d: 1, release: none }   # τ₁ (0,1)
-      - { c: 3, d: 7, release: up   }   # τ₂ (3,7)↑
+      - { c: 0, d: 1, release: none }
+      - { c: 3, d: 7, release: up   }
+    childrens: [n61]
 
-  # From n42
   - id: n52
     tasks:
-      - { c: 0, d: 1, release: none }   # τ₁ (0,1)
-      - { c: 2, d: 6, release: none }   # τ₂ (2,6)
+      - { c: 0, d: 1, release: none }
+      - { c: 2, d: 6, release: none }
+    childrens: [n62]
 
-  # From n43 middle
   - id: n53
     tasks:
-      - { c: 0, d: 0, release: none }   # τ₁ (0,0)
-      - { c: 0, d: 3, release: none }   # τ₂ (0,3)
+      - { c: 0, d: 0, release: none }
+      - { c: 0, d: 3, release: none }
+    childrens: [n60]
 
-  # From n44
   - id: n54
     tasks:
-      - { c: 2, d: 5, release: up   }   # τ₁ (2,5)↑
-      - { c: 0, d: 3, release: none }   # τ₂ (0,3)
+      - { c: 2, d: 5, release: up   }
+      - { c: 0, d: 3, release: none }
+    childrens: [n61]
 
-  # From n45
   - id: n55
     tasks:
-      - { c: 1, d: 4, release: none }   # τ₁ (1,4)
-      - { c: 0, d: 3, release: none }   # τ₂ (0,3)
+      - { c: 1, d: 4, release: none }
+      - { c: 0, d: 3, release: none }
+    childrens: [n62]
 
-  # From n46
   - id: n56
     tasks:
-      - { c: 0, d: 3, release: down }   # τ₁ (0,3)↓
-      - { c: 0, d: 3, release: none }   # τ₂ (0,3) — picture: (0,3)↓ top row
+      - { c: 0, d: 3, release: down }
+      - { c: 0, d: 3, release: none }
+    childrens: [n63]
 
-  # From n46 second child
   - id: n57
     tasks:
-      - { c: 0, d: 2, release: none }   # τ₁ (0,2)
-      - { c: 0, d: 3, release: none }   # τ₂ (0,3) — picture: (0,2)/(1,3)
+      - { c: 0, d: 2, release: none }
+      - { c: 0, d: 3, release: none }
+    childrens: [n64]
 
-  # From n47 far right
   - id: n58
     tasks:
-      - { c: 0, d: 1, release: none }   # τ₁ (0,1)
-      - { c: 0, d: 3, release: none }   # τ₂ (0,3)  — picture: (0,1)/(1,3)
+      - { c: 0, d: 1, release: none }
+      - { c: 0, d: 3, release: none }
+    childrens: [n65]
 
-  # ── Level 6 ──────────────────────────────────────────────────────────────────
-  # Reading the bottom two rows of the picture precisely left to right
-
-  # Row 6a — second from bottom
   - id: n60
     tasks:
-      - { c: 0, d: 0, release: none }   # τ₁ (0,0)
-      - { c: 0, d: 2, release: none }   # τ₂ (0,2)
+      - { c: 0, d: 0, release: none }
+      - { c: 0, d: 2, release: none }
+    childrens: [n70]
 
   - id: n61
     tasks:
-      - { c: 2, d: 5, release: up   }   # τ₁ (2,5)↑
-      - { c: 0, d: 2, release: none }   # τ₂ (0,2)
+      - { c: 2, d: 5, release: up   }
+      - { c: 0, d: 2, release: none }
+    childrens: [n71]
 
   - id: n62
     tasks:
-      - { c: 1, d: 4, release: none }   # τ₁ (1,4)
-      - { c: 0, d: 2, release: none }   # τ₂ (0,2)
+      - { c: 1, d: 4, release: none }
+      - { c: 0, d: 2, release: none }
+    childrens: [n72]
 
   - id: n63
     tasks:
-      - { c: 0, d: 3, release: down }   # τ₁ (0,3)↓
-      - { c: 0, d: 2, release: none }   # τ₂ (0,2)
+      - { c: 0, d: 3, release: down }
+      - { c: 0, d: 2, release: none }
+    childrens: [n73]
 
   - id: n64
     tasks:
-      - { c: 0, d: 2, release: none }   # τ₁ (0,2)
-      - { c: 0, d: 2, release: down }   # τ₂ (0,2)↓
+      - { c: 0, d: 2, release: none }
+      - { c: 0, d: 2, release: down }
+    childrens: [n74]
 
   - id: n65
     tasks:
-      - { c: 0, d: 1, release: none }   # τ₁ (0,1)
-      - { c: 0, d: 2, release: down }   # τ₂ (0,2)↓
+      - { c: 0, d: 1, release: none }
+      - { c: 0, d: 2, release: down }
+    childrens: [n75]
+    loop: [n75]
 
-  # ── Level 7 (bottom row) ─────────────────────────────────────────────────────
   - id: n70
     tasks:
-      - { c: 0, d: 0, release: none }   # τ₁ (0,0)
-      - { c: 0, d: 1, release: none }   # τ₂ (0,1)
+      - { c: 0, d: 0, release: none }
+      - { c: 0, d: 1, release: none }
+    loop: [n00]
 
   - id: n71
     tasks:
-      - { c: 2, d: 5, release: up   }   # τ₁ (2,5)↑
-      - { c: 0, d: 1, release: none }   # τ₂ (0,1)
+      - { c: 2, d: 5, release: up   }
+      - { c: 0, d: 1, release: none }
+    loop: [n10]
 
   - id: n72
     tasks:
-      - { c: 1, d: 4, release: none }   # τ₁ (1,4)
-      - { c: 0, d: 1, release: none }   # τ₂ (0,1)
+      - { c: 1, d: 4, release: none }
+      - { c: 0, d: 1, release: none }
+    loop: [n20]
 
   - id: n73
     tasks:
-      - { c: 0, d: 3, release: down }   # τ₁ (0,3)↓
-      - { c: 0, d: 1, release: none }   # τ₂ (0,1)
+      - { c: 0, d: 3, release: down }
+      - { c: 0, d: 1, release: none }
+    loop: [n30]
 
   - id: n74
     tasks:
-      - { c: 0, d: 2, release: none }   # τ₁ (0,2)
-      - { c: 0, d: 1, release: none }   # τ₂ (0,1)
+      - { c: 0, d: 2, release: none }
+      - { c: 0, d: 1, release: none }
+    loop: [n40]
 
   - id: n75
     tasks:
-      - { c: 0, d: 1, release: none }   # τ₁ (0,1)
-      - { c: 0, d: 1, release: none }   # τ₂ (0,1)
-
-# ── EDGES ──────────────────────────────────────────────────────────────────────
-edges:
-
-  # ── L0 → L1 ──────────────────────────────────────────────────────────────────
-  - { source: n00, target: n10, type: normal }
-  - { source: n00, target: n11, type: normal }
-  - { source: n00, target: n12, type: normal }
-
-  # ── L1 → L2 ──────────────────────────────────────────────────────────────────
-  - { source: n10, target: n20, type: normal }
-  - { source: n10, target: n21, type: normal }
-  - { source: n11, target: n22, type: normal }
-  - { source: n12, target: n22, type: normal }
-  - { source: n12, target: n23, type: normal }
-  - { source: n12, target: n24, type: normal }
-
-  # ── L2 → L3 ──────────────────────────────────────────────────────────────────
-  - { source: n20, target: n30, type: normal }
-  - { source: n20, target: n31, type: normal }
-  - { source: n21, target: n31, type: normal }
-  - { source: n21, target: n32, type: normal }
-  - { source: n22, target: n33, type: normal }
-  - { source: n22, target: n34, type: normal }
-  - { source: n23, target: n35, type: normal }
-  - { source: n24, target: n36, type: normal }
-
-  # ── L3 → L4 ──────────────────────────────────────────────────────────────────
-  - { source: n30, target: n40, type: normal }
-  - { source: n31, target: n41, type: normal }
-  - { source: n32, target: n42, type: normal }
-  - { source: n33, target: n43, type: normal }
-  - { source: n34, target: n44, type: normal }
-  - { source: n35, target: n45, type: normal }
-  - { source: n35, target: n46, type: normal }
-  - { source: n36, target: n47, type: normal }
-
-  # ── L4 → L5 ──────────────────────────────────────────────────────────────────
-  - { source: n40, target: n50, type: normal }
-  - { source: n41, target: n51, type: normal }
-  - { source: n42, target: n52, type: normal }
-  - { source: n43, target: n53, type: normal }
-  - { source: n44, target: n54, type: normal }
-  - { source: n45, target: n55, type: normal }
-  - { source: n46, target: n56, type: normal }
-  - { source: n46, target: n57, type: normal }
-  - { source: n47, target: n58, type: normal }
-
-  # ── L5 → L6 ──────────────────────────────────────────────────────────────────
-  - { source: n50, target: n60, type: normal }
-  - { source: n51, target: n61, type: normal }
-  - { source: n52, target: n62, type: normal }
-  - { source: n53, target: n60, type: normal }
-  - { source: n54, target: n61, type: normal }
-  - { source: n55, target: n62, type: normal }
-  - { source: n56, target: n63, type: normal }
-  - { source: n57, target: n64, type: normal }
-  - { source: n58, target: n65, type: normal }
-
-  # ── L6 → L7 ──────────────────────────────────────────────────────────────────
-  - { source: n60, target: n70, type: normal }
-  - { source: n61, target: n71, type: normal }
-  - { source: n62, target: n72, type: normal }
-  - { source: n63, target: n73, type: normal }
-  - { source: n64, target: n74, type: normal }
-  - { source: n65, target: n75, type: normal }
-
-  # ── Job-release arcs (dashed red — wrap back to earlier levels) ───────────────
-  # These are the long curved dashed arrows visible on the left of the picture
-  # They go from the bottom nodes back up to nodes at matching system state
-
-  # Bottom row wrapping back to root and level-1 nodes
-  - { source: n70, target: n00, type: job-release }   # (0,0)/(0,1) → (0,0)/(0,0)
-  - { source: n71, target: n10, type: job-release }   # (2,5)↑/(0,1) → (2,5)↑/(0,0)
-  - { source: n72, target: n20, type: job-release }   # (1,4)/(0,1) → (1,4)/(0,0)
-  - { source: n73, target: n30, type: job-release }   # (0,3)↓/(0,1) → (0,3)↓/(0,0)
-  - { source: n74, target: n40, type: job-release }   # (0,2)/(0,1) → (0,2)/(0,0)
-  - { source: n75, target: n50, type: job-release }   # (0,1)/(0,1) → (0,1)/(0,0)
-
-  # Level-6 row wrapping back
-  - { source: n65, target: n75, type: job-release }   # feeds into bottom
+      - { c: 0, d: 1, release: none }
+      - { c: 0, d: 1, release: none }
+    loop: [n50]

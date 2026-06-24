@@ -24,7 +24,7 @@ export interface GraphEdge {
   id?: string;
   source: string;
   target: string;
-  type: 'normal' | 'job-release'; // job-release = dashed red arc
+  type: 'normal' | 'loop';
   label?: string;
   metadata?: Record<string, unknown>;
 }
@@ -40,25 +40,6 @@ export interface GraphFile {
   nodes: GraphNode[];
   edges: GraphEdge[];
   layout?: {
-    name: 'dagre' | 'fcose' | 'cola' | 'breadthfirst' | 'grid';
-    options?: Record<string, unknown>;
+    name: 'dagre';
   };
-}
-
-// Cytoscape element types
-export interface CytoscapeNodeData {
-  id: string;
-  label: string;
-  tasks: NodeTaskDisplay[];
-  isInitial: boolean;
-  width: number;
-  height: number;
-}
-
-export interface CytoscapeEdgeData {
-  id: string;
-  source: string;
-  target: string;
-  type: 'normal' | 'job-release';
-  label?: string;
 }
