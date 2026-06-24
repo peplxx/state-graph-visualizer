@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState} from 'react';
 import type { NodeSingular } from 'cytoscape';
 import GraphViewer from './components/GraphViewer';
 import type { GraphViewerHandle } from './components/GraphViewer';

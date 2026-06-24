@@ -11,14 +11,15 @@ export function buildLayoutOptions(
     dagre: {
       name:    'dagre',
       rankDir: 'TB',
-      ranker:  'longest-path',
-      rankSep: 80 * sf,
-      nodeSep: 52 * sf,
+      // network-simplex honours per-edge minLen constraints
+      // which is how we enforce BFS-depth rank placement
+      ranker:  'network-simplex',
+      rankSep: 100 * sf,
+      nodeSep: 60  * sf,
       edgeSep: 10,
       animate: false,
-      // extra left padding so release arcs don't overlap nodes
       padding: 120,
-    }
+    },
   };
 
   return { ...bases[name], ...(overrides ?? {}) };

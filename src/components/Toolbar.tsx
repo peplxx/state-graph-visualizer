@@ -1,5 +1,4 @@
 import React from 'react';
-import type { LayoutName } from '../core/layoutConfig';
 
 interface Props {
   onFit: () => void;
