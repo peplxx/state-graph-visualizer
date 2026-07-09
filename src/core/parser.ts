@@ -1,77 +1,71 @@
 import * as yaml from 'js-yaml';
-import type {
-	GraphFile,
-	GraphNode,
-	GraphEdge,
-	NodeTaskDisplay,
-	ReleaseIndicator
-} from '../types/graph';
+import {
+	GraphFileYamlSchema,
+	formatZodErrors
+} from '../schema/graphSchema';
+import type { GraphNodeYaml } from '../schema/graphSchema';
+import type { GraphFile, GraphEdge, GraphNode } from '../types/graph';
+import { toNodeTaskDisplay } from '../types/graph';
 
-function parseRelease(val: unknown): ReleaseIndicator {
-	if (val === 'up' || val === '↑' || val === 1) return 'up';
-	if (val === 'down' || val === '↓' || val === -1) return 'down';
-	return 'none';
-}
-
-function normalizeTasks(raw: unknown): NodeTaskDisplay[] {
-	if (!Array.isArray(raw)) return [];
-	return (raw as Record<string, unknown>[]).map((t) => ({
-		task: { c: Number(t.c ?? 0), d: Number(t.d ?? 0) },
-		release: parseRelease(t.release)
-	}));
-}
-
-export function parseYAML(content: string): GraphFile {
-	const raw = yaml.load(content) as Record<string, any>;
-
-	if (!raw || !Array.isArray(raw.nodes)) {
-		return { nodes: [], edges: [] };
-	}
-
-	const nodes: GraphNode[] = [];
+function synthesizeEdges(nodes: GraphNodeYaml[]): GraphEdge[] {
 	const edges: GraphEdge[] = [];
 	let edgeIdx = 0;
 
-	for (const rawNode of raw.nodes) {
-		const id = String(rawNode.id);
-
-		// 1. Normalize node
-		nodes.push({
-			id,
-			tasks: normalizeTasks(rawNode.tasks),
-			isInitial: Boolean(rawNode.initial ?? rawNode.isInitial ?? false)
-		});
-
-		// 2. Process childrens
-		if (Array.isArray(rawNode.childrens)) {
-			for (const targetId of rawNode.childrens) {
-				edges.push({
-					id: `e${edgeIdx++}`,
-					source: id,
-					target: String(targetId),
-					type: 'normal'
-				});
-			}
+	for (const node of nodes) {
+		for (const targetId of node.children) {
+			edges.push({
+				id: `e${edgeIdx++}`,
+				source: node.id,
+				target: targetId,
+				type: 'normal'
+			});
 		}
-
-		// 3. Process loops
-		if (Array.isArray(rawNode.loop)) {
-			for (const targetId of rawNode.loop) {
-				edges.push({
-					id: `e${edgeIdx++}`,
-					source: id,
-					target: String(targetId),
-					type: 'loop'
-				});
-			}
+		for (const targetId of node.loopback) {
+			edges.push({
+				id: `e${edgeIdx++}`,
+				source: node.id,
+				target: targetId,
+				type: 'loop'
+			});
 		}
 	}
 
+	return edges;
+}
+
+function toGraphNode(node: GraphNodeYaml): GraphNode {
 	return {
-		system: raw.system as GraphFile['system'],
-		nodes,
-		edges,
-		layout: (raw.layout || 'dagre') as GraphFile['layout']
+		id: node.id,
+		label: node.label,
+		tasks: node.tasks.map(toNodeTaskDisplay),
+		isInitial: Boolean(node.initial ?? node.isInitial ?? false),
+		borderColor: node.borderColor,
+		fillColor: node.fillColor,
+		metadata: node.metadata
+	};
+}
+
+export function parseYAML(content: string): GraphFile {
+	let raw: unknown;
+	try {
+		raw = yaml.load(content);
+	} catch (err) {
+		throw new Error(`Invalid YAML: ${(err as Error).message}`);
+	}
+
+	const result = GraphFileYamlSchema.safeParse(raw);
+	if (!result.success) {
+		throw new Error(formatZodErrors(result.error));
+	}
+
+	const parsed = result.data;
+
+	return {
+		schemaVersion: parsed.schemaVersion,
+		system: parsed.system,
+		nodes: parsed.nodes.map(toGraphNode),
+		edges: synthesizeEdges(parsed.nodes),
+		layout: parsed.layout ?? { algorithm: 'dagre' }
 	};
 }
 

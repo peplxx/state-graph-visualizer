@@ -1,3 +1,5 @@
+schemaVersion: 1
+
 system:
   m: 2
   tasks:
@@ -10,66 +12,66 @@ nodes:
     tasks:
       - { c: 0, d: 0, release: none }
       - { c: 0, d: 0, release: none }
-    childrens: [n11, n12, n13]
+    children: [n11, n12, n13]
   
   - id: n11
     tasks:
       - { c: 1, d: 2, release: up   }
       - { c: 0, d: 0, release: none }
-    childrens: [n21,n22]
+    children: [n21,n22]
     
   
   - id: n12
     tasks:
       - { c: 0, d: 0, release: none }
       - { c: 1, d: 2, release: up   }
-    childrens: [n23, n24]
+    children: [n23, n24]
 
   - id: n13
     tasks:
       - { c: 1, d: 2, release: up   }
       - { c: 1, d: 2, release: up   }
-    childrens: [n25]
+    children: [n25]
   
   - id: n21
     tasks:
       - { c: 0, d: 1, release: down }
       - { c: 0, d: 0, release: none }
-    loop: [n0]
+    loopback: [n0]
   
   - id: n22
     tasks:
       - { c: 0, d: 1, release: down }
       - { c: 1, d: 2, release: up}
-    childrens: [n31]
+    children: [n31]
   
   - id: n23
     tasks:
       - { c: 0, d: 0, release: none }
       - { c: 0, d: 1, release: down }
-    loop: [n0]
+    loopback: [n0]
   
   - id: n24
     tasks:
       - { c: 1, d: 2, release: up   }
       - { c: 0, d: 1, release: down }
-    childrens: [n32]
+    children: [n32]
   
   - id: n25
     tasks:
       - { c: 0, d: 1, release: down }
       - { c: 0, d: 1, release: down }
-    childrens: []
-    loop: [n0]
+    children: []
+    loopback: [n0]
   
   - id: n31
     tasks:
       - { c: 0, d: 0, release: none }
       - { c: 0, d: 1, release: down}
-    loop: [n0]
+    loopback: [n0]
   
   - id: n32
     tasks:
       - { c: 0, d: 1, release: down }
       - { c: 0, d: 0, release: none}
-    loop: [n0]
+    loopback: [n0]

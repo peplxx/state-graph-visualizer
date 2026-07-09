@@ -22,10 +22,21 @@ export const stylesheet: StylesheetStyle[] = [
 		}
 	},
 	{
+		selector: 'node[?fillColor]',
+		style: {
+			'background-color': 'data(fillColor)'
+		}
+	},
+	{
+		selector: 'node[?borderColor]',
+		style: {
+			'border-color': 'data(borderColor)'
+		}
+	},
+	{
 		selector: 'node[?isInitial]',
 		style: {
-			'border-width': 3,
-			'border-color': '#000000'
+			'border-width': 3
 		}
 	},
 	{

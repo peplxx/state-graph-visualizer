@@ -1,3 +1,5 @@
+schemaVersion: 1
+
 system:
   description: "EDF feasibility graph – τ₁=(2,5) τ₂=(3,7) m=1"
   m: 1
@@ -11,269 +13,269 @@ nodes:
     tasks:
       - { c: 0, d: 0, release: none }
       - { c: 0, d: 0, release: none }
-    childrens: [n10, n11, n12]
+    children: [n10, n11, n12]
 
   - id: n10
     tasks:
       - { c: 2, d: 5, release: up   }
       - { c: 0, d: 0, release: none }
-    childrens: [n20, n21]
+    children: [n20, n21]
 
   - id: n11
     tasks:
       - { c: 0, d: 0, release: none }
       - { c: 3, d: 7, release: up   }
-    childrens: [n22]
+    children: [n22]
 
   - id: n12
     tasks:
       - { c: 2, d: 5, release: up   }
       - { c: 3, d: 7, release: up   }
-    childrens: [n22, n23, n24]
+    children: [n22, n23, n24]
 
   - id: n20
     tasks:
       - { c: 1, d: 4, release: none }
       - { c: 0, d: 0, release: none }
-    childrens: [n30, n31]
+    children: [n30, n31]
 
   - id: n21
     tasks:
       - { c: 1, d: 4, release: none }
       - { c: 3, d: 7, release: up   }
-    childrens: [n31, n32]
+    children: [n31, n32]
 
   - id: n22
     tasks:
       - { c: 0, d: 0, release: none }
       - { c: 2, d: 6, release: none }
-    childrens: [n33, n34]
+    children: [n33, n34]
 
   - id: n23
     tasks:
       - { c: 2, d: 5, release: up   }
       - { c: 2, d: 6, release: none }
-    childrens: [n35]
+    children: [n35]
 
   - id: n24
     tasks:
       - { c: 1, d: 4, release: none }
       - { c: 3, d: 6, release: none }
-    childrens: [n36]
+    children: [n36]
 
   - id: n30
     tasks:
       - { c: 0, d: 3, release: down }
       - { c: 0, d: 0, release: none }
-    childrens: [n40]
+    children: [n40]
 
   - id: n31
     tasks:
       - { c: 0, d: 3, release: down }
       - { c: 3, d: 7, release: up   }
-    childrens: [n41]
+    children: [n41]
 
   - id: n32
     tasks:
       - { c: 0, d: 3, release: down }
       - { c: 3, d: 6, release: none }
-    childrens: [n42]
+    children: [n42]
 
   - id: n33
     tasks:
       - { c: 0, d: 0, release: none }
       - { c: 1, d: 5, release: none }
-    childrens: [n43]
+    children: [n43]
 
   - id: n34
     tasks:
       - { c: 2, d: 5, release: up   }
       - { c: 1, d: 5, release: none }
-    childrens: [n44]
+    children: [n44]
 
   - id: n35
     tasks:
       - { c: 1, d: 4, release: none }
       - { c: 2, d: 5, release: none }
-    childrens: [n45, n46]
+    children: [n45, n46]
 
   - id: n36
     tasks:
       - { c: 0, d: 3, release: down }
       - { c: 3, d: 5, release: none }
-    childrens: [n47]
+    children: [n47]
 
   - id: n40
     tasks:
       - { c: 0, d: 2, release: none }
       - { c: 0, d: 0, release: none }
-    childrens: [n50]
+    children: [n50]
 
   - id: n41
     tasks:
       - { c: 0, d: 2, release: none }
       - { c: 3, d: 7, release: up   }
-    childrens: [n51]
+    children: [n51]
 
   - id: n42
     tasks:
       - { c: 0, d: 2, release: none }
       - { c: 2, d: 6, release: none }
-    childrens: [n52]
+    children: [n52]
 
   - id: n43
     tasks:
       - { c: 0, d: 0, release: none }
       - { c: 0, d: 4, release: down }
-    childrens: [n53]
+    children: [n53]
 
   - id: n44
     tasks:
       - { c: 2, d: 5, release: up   }
       - { c: 0, d: 4, release: down }
-    childrens: [n54]
+    children: [n54]
 
   - id: n45
     tasks:
       - { c: 1, d: 4, release: none }
       - { c: 0, d: 4, release: down }
-    childrens: [n55]
+    children: [n55]
 
   - id: n46
     tasks:
       - { c: 0, d: 3, release: down }
       - { c: 2, d: 4, release: none }
-    childrens: [n56, n57]
+    children: [n56, n57]
 
   - id: n47
     tasks:
       - { c: 0, d: 2, release: none }
       - { c: 2, d: 4, release: none }
-    childrens: [n58]
+    children: [n58]
 
   - id: n50
     tasks:
       - { c: 0, d: 1, release: none }
       - { c: 0, d: 0, release: none }
-    childrens: [n60]
+    children: [n60]
 
   - id: n51
     tasks:
       - { c: 0, d: 1, release: none }
       - { c: 3, d: 7, release: up   }
-    childrens: [n61]
+    children: [n61]
 
   - id: n52
     tasks:
       - { c: 0, d: 1, release: none }
       - { c: 2, d: 6, release: none }
-    childrens: [n62]
+    children: [n62]
 
   - id: n53
     tasks:
       - { c: 0, d: 0, release: none }
       - { c: 0, d: 3, release: none }
-    childrens: [n60]
+    children: [n60]
 
   - id: n54
     tasks:
       - { c: 2, d: 5, release: up   }
       - { c: 0, d: 3, release: none }
-    childrens: [n61]
+    children: [n61]
 
   - id: n55
     tasks:
       - { c: 1, d: 4, release: none }
       - { c: 0, d: 3, release: none }
-    childrens: [n62]
+    children: [n62]
 
   - id: n56
     tasks:
       - { c: 0, d: 3, release: down }
       - { c: 0, d: 3, release: none }
-    childrens: [n63]
+    children: [n63]
 
   - id: n57
     tasks:
       - { c: 0, d: 2, release: none }
       - { c: 0, d: 3, release: none }
-    childrens: [n64]
+    children: [n64]
 
   - id: n58
     tasks:
       - { c: 0, d: 1, release: none }
       - { c: 0, d: 3, release: none }
-    childrens: [n65]
+    children: [n65]
 
   - id: n60
     tasks:
       - { c: 0, d: 0, release: none }
       - { c: 0, d: 2, release: none }
-    childrens: [n70]
+    children: [n70]
 
   - id: n61
     tasks:
       - { c: 2, d: 5, release: up   }
       - { c: 0, d: 2, release: none }
-    childrens: [n71]
+    children: [n71]
 
   - id: n62
     tasks:
       - { c: 1, d: 4, release: none }
       - { c: 0, d: 2, release: none }
-    childrens: [n72]
+    children: [n72]
 
   - id: n63
     tasks:
       - { c: 0, d: 3, release: down }
       - { c: 0, d: 2, release: none }
-    childrens: [n73]
+    children: [n73]
 
   - id: n64
     tasks:
       - { c: 0, d: 2, release: none }
       - { c: 0, d: 2, release: down }
-    childrens: [n74]
+    children: [n74]
 
   - id: n65
     tasks:
       - { c: 0, d: 1, release: none }
       - { c: 0, d: 2, release: down }
-    childrens: [n75]
-    loop: [n75]
+    children: [n75]
+    loopback: [n75]
 
   - id: n70
     tasks:
       - { c: 0, d: 0, release: none }
       - { c: 0, d: 1, release: none }
-    loop: [n00]
+    loopback: [n00]
 
   - id: n71
     tasks:
       - { c: 2, d: 5, release: up   }
       - { c: 0, d: 1, release: none }
-    loop: [n10]
+    loopback: [n10]
 
   - id: n72
     tasks:
       - { c: 1, d: 4, release: none }
       - { c: 0, d: 1, release: none }
-    loop: [n20]
+    loopback: [n20]
 
   - id: n73
     tasks:
       - { c: 0, d: 3, release: down }
       - { c: 0, d: 1, release: none }
-    loop: [n30]
+    loopback: [n30]
 
   - id: n74
     tasks:
       - { c: 0, d: 2, release: none }
       - { c: 0, d: 1, release: none }
-    loop: [n40]
+    loopback: [n40]
 
   - id: n75
     tasks:
       - { c: 0, d: 1, release: none }
       - { c: 0, d: 1, release: none }
-    loop: [n50]
+    loopback: [n50]

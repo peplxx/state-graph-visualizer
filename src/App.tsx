@@ -47,7 +47,7 @@ export default function App() {
 		selectedNodeRef.current = null;
 		setSidebarOpen(false);
 		setError(null);
-		if (graph.layout?.name) setLayout(graph.layout.name as LayoutName);
+		if (graph.layout?.algorithm) setLayout(graph.layout.algorithm);
 	});
 
 	const handleFileInput = useRef((file: File) => {
@@ -104,6 +104,11 @@ export default function App() {
 					) : (
 						<>
 							<Toolbar
+								layout={layout}
+								onLayoutChange={(name) => {
+									setLayout(name);
+									viewerRef.current?.runLayout(name);
+								}}
 								onFit={() => viewerRef.current?.fit()}
 								onZoomIn={() => viewerRef.current?.zoomIn()}
 								onZoomOut={() => viewerRef.current?.zoomOut()}

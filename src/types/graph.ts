@@ -1,15 +1,23 @@
-// Task representation: (c, d) = (remaining computation time, relative deadline)
-export interface TaskState {
-	c: number; // remaining computation time
-	d: number; // relative deadline for current job
-}
+import type {
+	GraphFileYaml,
+	GraphNodeYaml,
+	LayoutYaml,
+	NodeTaskYaml,
+	ReleaseIndicator,
+	SystemConfigYaml
+} from '../schema/graphSchema';
+import { normalizeRelease } from '../schema/graphSchema';
 
-// Job release indicator per task
-export type ReleaseIndicator = 'up' | 'down' | 'none';
+export type { ReleaseIndicator };
+
+export interface TaskState {
+	c: number;
+	d: number;
+}
 
 export interface NodeTaskDisplay {
 	task: TaskState;
-	release: ReleaseIndicator; // arrow up = job released, arrow down = job completing
+	release: ReleaseIndicator;
 }
 
 export interface GraphNode {
@@ -17,6 +25,8 @@ export interface GraphNode {
 	label?: string;
 	tasks: NodeTaskDisplay[];
 	isInitial?: boolean;
+	borderColor?: string;
+	fillColor?: string;
 	metadata?: Record<string, unknown>;
 }
 
@@ -29,17 +39,22 @@ export interface GraphEdge {
 	metadata?: Record<string, unknown>;
 }
 
-export interface SystemConfig {
-	tasks: Array<{ c: number; d: number; name?: string }>;
-	m?: number; // number of processors
-	description?: string;
-}
+export type SystemConfig = SystemConfigYaml;
+export type GraphLayout = LayoutYaml;
 
 export interface GraphFile {
+	schemaVersion?: number;
 	system?: SystemConfig;
 	nodes: GraphNode[];
 	edges: GraphEdge[];
-	layout?: {
-		name: 'dagre';
+	layout?: GraphLayout;
+}
+
+export type { GraphFileYaml, GraphNodeYaml, NodeTaskYaml };
+
+export function toNodeTaskDisplay(task: NodeTaskYaml): NodeTaskDisplay {
+	return {
+		task: { c: task.c, d: task.d },
+		release: normalizeRelease(task.release ?? 'none')
 	};
 }
