@@ -17,7 +17,7 @@ export const FileLoader: React.FC<Props> = ({ onLoad, onError }) => {
 		reader.onload = (e) => {
 			try {
 				const content = e.target?.result as string;
-				const graph = parseFile(content, file.name);
+				const graph = parseFile(content);
 				onLoad(graph, file.name);
 			} catch (err) {
 				onError(`Parse error: ${(err as Error).message}`);

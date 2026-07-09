@@ -13,7 +13,10 @@ import dagre from 'cytoscape-dagre';
 import fcose from 'cytoscape-fcose';
 
 import { stylesheet } from '../core/cytoscapeConfig';
-import { buildLayoutOptions } from '../core/layoutConfig';
+import {
+	buildLayoutOptions,
+	computeConcentricPositions
+} from '../core/layoutConfig';
 import type { LayoutName } from '../core/layoutConfig';
 import { buildNodeLabel, estimateNodeSize } from '../core/labelBuilder';
 import type { GraphFile, NodeTaskDisplay } from '../types/graph';
@@ -131,6 +134,52 @@ function computeBFSDepthRanks(
 	}
 
 	return rank;
+}
+
+function runGraphLayout(
+	cy: Core,
+	layoutName: LayoutName,
+	graphData: GraphFile,
+	onComplete: () => void
+) {
+	if (layoutName === 'concentric') {
+		const ranks = computeBFSDepthRanks(graphData.nodes, graphData.edges);
+		const positions = computeConcentricPositions(
+			ranks,
+			graphData.nodes.map((n) => n.id)
+		);
+		cy.nodes().forEach((node) => {
+			const pos = positions.get(node.id());
+			if (pos) node.position(pos);
+		});
+		cy.fit(undefined, 120);
+		onComplete();
+		return;
+	}
+
+	const layoutOpts = buildLayoutOptions(
+		layoutName,
+		graphData.nodes.length
+	);
+	const layoutEles = cy.elements().filter(
+		(el) =>
+			el.isNode() ||
+			el.data('type') === 'normal' ||
+			el.data('type') === 'virtual'
+	);
+
+	const lo = cy.layout({
+		...layoutOpts,
+		name: 'dagre',
+		eles: layoutEles,
+		ranker: 'network-simplex'
+	} as any);
+
+	lo.on('layoutstop', () => {
+		cy.fit(undefined, 120);
+		onComplete();
+	});
+	lo.run();
 }
 
 // ── Canvas arc drawing ────────────────────────────────────────────────────────
@@ -281,8 +330,10 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 
 		const onNodeClickRef = useRef<typeof onNodeClick>(undefined);
 		const onStatsChangeRef = useRef<typeof onStatsChange>(undefined);
+		const graphDataRef = useRef(graphData);
 		onNodeClickRef.current = onNodeClick;
 		onStatsChangeRef.current = onStatsChange;
+		graphDataRef.current = graphData;
 
 		const [tooltip, setTooltip] = useState<{
 			x: number;
@@ -452,7 +503,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				// ── Nodes ─────────────────────────────────────────────────────────
 				const nodeElements: cytoscape.ElementDefinition[] = [];
 				for (const node of graphData.nodes) {
-					const label = buildNodeLabel(node.tasks);
+					const label =
+						node.label ?? buildNodeLabel(node.tasks);
 					const { width, height } = estimateNodeSize(node.tasks);
 					nodeElements.push({
 						group: 'nodes',
@@ -461,6 +513,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 							label,
 							tasks: node.tasks,
 							isInitial: node.isInitial ?? false,
+							borderColor: node.borderColor,
+							fillColor: node.fillColor,
 							width,
 							height,
 							rank: ranks.get(node.id) ?? 0
@@ -550,35 +604,12 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				cy.endBatch();
 
 				// ── Layout ────────────────────────────────────────────────────────
-				const layoutName = (graphData.layout?.name ??
+				const layoutName = (graphData.layout?.algorithm ??
 					layout) as LayoutName;
-				const layoutOpts = buildLayoutOptions(
-					layoutName,
-					graphData.nodes.length
-				);
 
-				const layoutEles = cy
-					.elements()
-					.filter(
-						(el) =>
-							el.isNode() ||
-							el.data('type') === 'normal' ||
-							el.data('type') === 'virtual'
-					);
-
-				const lo = cy.layout({
-					...layoutOpts,
-					name: 'dagre',
-					eles: layoutEles,
-					ranker: 'network-simplex'
-				});
-
-				lo.on('layoutstop', () => {
-					cy.fit(undefined, 120);
+				runGraphLayout(cy, layoutName, graphData, () => {
 					requestAnimationFrame(redrawArcs);
 				});
-
-				lo.run();
 
 				onStatsChangeRef.current?.({
 					nodes: graphData.nodes.length,
@@ -642,29 +673,13 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 
 			runLayout(name: LayoutName) {
 				const cy = cyRef.current;
-				if (!cy) return;
+				const data = graphDataRef.current;
+				if (!cy || !data) return;
 
-				const layoutEles = cy
-					.elements()
-					.filter(
-						(el) =>
-							el.isNode() ||
-							el.data('type') === 'normal' ||
-							el.data('type') === 'virtual'
-					);
-
-				const lo = cy.layout({
-					...buildLayoutOptions(name, cy.nodes().length),
-					name,
-					eles: layoutEles,
-					ranker: 'network-simplex'
-				});
-
-				lo.on('layoutstop', () => {
+				runGraphLayout(cy, name, data, () => {
 					redrawArcs();
 					animateArcs(300);
 				});
-				lo.run();
 			}
 		}));
 
