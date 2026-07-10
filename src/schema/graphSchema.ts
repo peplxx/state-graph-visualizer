@@ -60,6 +60,7 @@ export const GraphNodeYamlSchema = z.object({
 	label: z.string().optional(),
 	borderColor: z.string().min(1).optional(),
 	fillColor: z.string().min(1).optional(),
+	hatch: z.enum(['single', 'cross']).optional(),
 	metadata: z.record(z.string(), z.unknown()).optional()
 });
 

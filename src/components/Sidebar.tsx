@@ -36,9 +36,12 @@ const BORDER_PALETTE: { color: string; label: string }[] = [
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type HatchStyle = 'single' | 'cross' | 'none';
+
 interface ColorOverride {
 	fill?: string;
 	border?: string;
+	hatch?: HatchStyle;
 }
 
 interface Props {
@@ -52,9 +55,35 @@ interface Props {
 	onColorChange?: (
 		nodeIds: string[],
 		fill?: string | null,
-		border?: string | null
+		border?: string | null,
+		hatch?: HatchStyle | null
 	) => void;
 }
+
+// ── Hatch icons ───────────────────────────────────────────────────────────────
+
+const HatchNoneIcon: React.FC = () => (
+	<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+		<rect x="1" y="1" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+	</svg>
+);
+
+const HatchSingleIcon: React.FC = () => (
+	<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+		<rect x="1" y="1" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+		<line x1="3" y1="13" x2="13" y2="3" stroke="currentColor" strokeWidth="1.2"/>
+		<line x1="0" y1="10" x2="6" y2="16" stroke="currentColor" strokeWidth="1.2"/>
+		<line x1="10" y1="0" x2="16" y2="6" stroke="currentColor" strokeWidth="1.2"/>
+	</svg>
+);
+
+const HatchCrossIcon: React.FC = () => (
+	<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+		<rect x="1" y="1" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+		<line x1="3" y1="13" x2="13" y2="3" stroke="currentColor" strokeWidth="1.2"/>
+		<line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.2"/>
+	</svg>
+);
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -119,6 +148,54 @@ const ColorRow: React.FC<ColorRowProps> = ({
 	</div>
 );
 
+// ── Hatch row sub-component ───────────────────────────────────────────────────
+
+interface HatchRowProps {
+	currentHatch: HatchStyle;
+	hasOverride: boolean;
+	onChange: (h: HatchStyle) => void;
+	onReset: () => void;
+}
+
+const HATCH_OPTIONS: { value: HatchStyle; label: string; Icon: React.FC }[] = [
+	{ value: 'none', label: 'None', Icon: HatchNoneIcon },
+	{ value: 'single', label: 'Diagonal', Icon: HatchSingleIcon },
+	{ value: 'cross', label: 'Cross', Icon: HatchCrossIcon },
+];
+
+const HatchRow: React.FC<HatchRowProps> = ({ currentHatch, hasOverride, onChange, onReset }) => (
+	<div className="appearance-row">
+		<div className="appearance-row-header">
+			<span className="appearance-row-label">Hatch</span>
+			<button
+				className="appearance-reset-btn"
+				disabled={!hasOverride}
+				onClick={onReset}
+				title="Reset to default"
+			>
+				<RotateCcw size={9} />
+				Reset
+			</button>
+		</div>
+		<div className="hatch-btn-group">
+			{HATCH_OPTIONS.map(({ value, label, Icon }) => (
+				<button
+					key={value}
+					type="button"
+					className={`hatch-btn${currentHatch === value ? ' is-active' : ''}`}
+					title={label}
+					onClick={() => onChange(value)}
+					aria-pressed={currentHatch === value}
+					aria-label={label}
+				>
+					<Icon />
+					<span>{label}</span>
+				</button>
+			))}
+		</div>
+	</div>
+);
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export const Sidebar: React.FC<Props> = ({
@@ -140,6 +217,9 @@ export const Sidebar: React.FC<Props> = ({
 	const effectiveBorder = (id: string, fallback?: string) =>
 		colorOverrides?.get(id)?.border ?? fallback ?? '#1A1A1A';
 
+	const effectiveHatch = (id: string, fallback?: HatchStyle): HatchStyle =>
+		(colorOverrides?.get(id)?.hatch as HatchStyle | undefined) ?? fallback ?? 'none';
+
 	// Compute display color for single or group
 	const displayFill = node
 		? effectiveFill(node.id, node.fillColor)
@@ -159,8 +239,17 @@ export const Sidebar: React.FC<Props> = ({
 				return allSame ? borders[0] : '#1A1A1A';
 			})();
 
+	const displayHatch: HatchStyle = node
+		? effectiveHatch(node.id, node.hatch)
+		: (() => {
+				const hatches = nodes.map((n) => effectiveHatch(n.id, n.hatch));
+				const allSame = hatches.every((h) => h === hatches[0]);
+				return allSame ? hatches[0] : 'none';
+			})();
+
 	const hasFillOverride = nodes.some((n) => colorOverrides?.has(n.id) && colorOverrides.get(n.id)?.fill !== undefined);
 	const hasBorderOverride = nodes.some((n) => colorOverrides?.has(n.id) && colorOverrides.get(n.id)?.border !== undefined);
+	const hasHatchOverride = nodes.some((n) => colorOverrides?.has(n.id) && colorOverrides.get(n.id)?.hatch !== undefined);
 
 	return (
 		<aside className="sidebar">
@@ -215,6 +304,17 @@ export const Sidebar: React.FC<Props> = ({
 										}
 										onReset={() =>
 											onColorChange(nodeIds, undefined, null)
+										}
+									/>
+									<div className="appearance-divider" />
+									<HatchRow
+										currentHatch={displayHatch}
+										hasOverride={hasHatchOverride}
+										onChange={(h) =>
+											onColorChange(nodeIds, undefined, undefined, h)
+										}
+										onReset={() =>
+											onColorChange(nodeIds, undefined, undefined, null)
 										}
 									/>
 								</div>
@@ -331,6 +431,17 @@ export const Sidebar: React.FC<Props> = ({
 										}
 										onReset={() =>
 											onColorChange(nodeIds, undefined, null)
+										}
+									/>
+									<div className="appearance-divider" />
+									<HatchRow
+										currentHatch={displayHatch}
+										hasOverride={hasHatchOverride}
+										onChange={(h) =>
+											onColorChange(nodeIds, undefined, undefined, h)
+										}
+										onReset={() =>
+											onColorChange(nodeIds, undefined, undefined, null)
 										}
 									/>
 								</div>

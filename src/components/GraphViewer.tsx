@@ -34,6 +34,7 @@ interface NodePos {
 	isInitial: boolean;
 	borderColor?: string;
 	fillColor?: string;
+	hatch?: 'single' | 'cross';
 }
 
 interface D3SpanNode {
@@ -1123,10 +1124,80 @@ function computeGroupConnectivity(
 	};
 }
 
+// ── Hatch pattern helpers ─────────────────────────────────────────────────────
+
+function sanitizePatternId(nodeId: string): string {
+	return `hatch-${nodeId.replace(/[^a-zA-Z0-9-]/g, '_')}`;
+}
+
+/** Darken a hex colour by `amount` (0–1). */
+function darkenColor(hex: string, amount = 0.35): string {
+	const c = hex.replace('#', '');
+	if (c.length !== 6) return hex;
+	const r = Math.round(parseInt(c.slice(0, 2), 16) * (1 - amount));
+	const g = Math.round(parseInt(c.slice(2, 4), 16) * (1 - amount));
+	const b = Math.round(parseInt(c.slice(4, 6), 16) * (1 - amount));
+	return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+/**
+ * Create or update an SVG hatch pattern in `<defs>`.
+ * Returns the pattern id (use as `url(#id)` for fill).
+ *
+ * Draws diagonal lines directly (no patternTransform) for reliable rendering.
+ * Tile is 10×10; lines extend 1px past each edge to avoid tiling gaps.
+ */
+function upsertHatchPattern(
+	defsEl: SVGDefsElement,
+	nodeId: string,
+	hatch: 'single' | 'cross',
+	fillColor: string,
+	stripeColor: string
+): string {
+	const id = sanitizePatternId(nodeId);
+	const N = 10;
+	const defs = d3.select(defsEl);
+	let pat = defs.select<SVGPatternElement>(`#${id}`);
+	if (pat.empty()) {
+		pat = defs
+			.append<SVGPatternElement>('pattern')
+			.attr('id', id)
+			.attr('patternUnits', 'userSpaceOnUse')
+			.attr('width', N)
+			.attr('height', N);
+	}
+	// Update size (in case it was previously set differently)
+	pat.attr('width', N).attr('height', N);
+	// Rebuild contents to handle hatch-type / color changes
+	pat.selectAll('*').remove();
+	// Background fill rect
+	pat.append('rect')
+		.attr('width', N)
+		.attr('height', N)
+		.attr('fill', fillColor);
+	// "/" diagonal: from bottom-left to top-right, extended 1px past tile edges
+	pat.append('line')
+		.attr('x1', -1).attr('y1', N + 1)
+		.attr('x2', N + 1).attr('y2', -1)
+		.attr('stroke', stripeColor)
+		.attr('stroke-width', 1.8);
+	if (hatch === 'cross') {
+		// "\" diagonal: from top-left to bottom-right
+		pat.append('line')
+			.attr('x1', -1).attr('y1', -1)
+			.attr('x2', N + 1).attr('y2', N + 1)
+			.attr('stroke', stripeColor)
+			.attr('stroke-width', 1.8);
+	}
+	return id;
+}
+
 // ── Props / handle ────────────────────────────────────────────────────────────
 export interface NodeColorOverride {
 	fill?: string;
 	border?: string;
+	/** 'none' explicitly removes hatch even if the YAML has one */
+	hatch?: 'single' | 'cross' | 'none';
 }
 
 interface Props {
@@ -1167,6 +1238,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 		const svgRef = useRef<SVGSVGElement>(null);
 		const wrapperRef = useRef<HTMLDivElement>(null);
 		const gRef = useRef<SVGGElement | null>(null);
+		const defsRef = useRef<SVGDefsElement | null>(null);
 		const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(
 			null
 		);
@@ -1222,6 +1294,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 							isInitial: d.isInitial,
 							borderColor: d.borderColor,
 							fillColor: d.fillColor,
+							hatch: d.hatch,
 							indegree: indegreeMapRef.current.get(id) ?? 0,
 							outdegree: outdegreeMapRef.current.get(id) ?? 0
 						} satisfies SelectedNodeData;
@@ -1486,6 +1559,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			svg.selectAll('*').remove();
 
 			const defs = svg.append('defs');
+			defsRef.current = defs.node();
 			const addMarker = (id: string, color: string) => {
 				defs.append('marker')
 					.attr('id', id)
@@ -1537,6 +1611,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			return () => {
 				svg.selectAll('*').remove();
 				gRef.current = null;
+				defsRef.current = null;
 				zoomRef.current = null;
 			};
 		}, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1887,7 +1962,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 					tasks: node.tasks,
 					isInitial: node.isInitial ?? false,
 					borderColor: node.borderColor,
-					fillColor: node.fillColor
+					fillColor: node.fillColor,
+					hatch: node.hatch
 				});
 			}
 			nodePosRef.current = nodeMap;
@@ -2126,19 +2202,35 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				.attr('rx', 9)
 				.attr('ry', 9);
 
+			// Helper: compute effective fill value (plain colour or url pattern)
+			const effectiveNodeFill = (d: NodePos): string => {
+				const ov = colorOverridesRef.current?.get(d.id);
+				const fill = ov?.fill ?? d.fillColor ?? '#FFFFFF';
+				const border = ov?.border ?? d.borderColor ?? '#1A1A1A';
+				const rawHatch = ov?.hatch !== undefined ? ov.hatch : d.hatch;
+				const hatch =
+					rawHatch === 'none' ? undefined : rawHatch;
+				if (hatch && defsRef.current) {
+					const stripe = darkenColor(border, 0.35);
+					const pid = upsertHatchPattern(
+						defsRef.current,
+						d.id,
+						hatch,
+						fill,
+						stripe
+					);
+					return `url(#${pid})`;
+				}
+				return fill;
+			};
+
 			// Circle shape
 			nodeGroups
 				.filter((d) => d.shape === 'circle')
 				.append('circle')
 				.attr('class', 'node-shape')
 				.attr('r', (d) => d.radius)
-				.attr(
-					'fill',
-					(d) =>
-						colorOverridesRef.current?.get(d.id)?.fill ??
-						d.fillColor ??
-						'#FFFFFF'
-				)
+				.attr('fill', effectiveNodeFill)
 				.attr(
 					'stroke',
 					(d) =>
@@ -2159,13 +2251,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				.attr('height', (d) => d.height)
 				.attr('rx', 6)
 				.attr('ry', 6)
-				.attr(
-					'fill',
-					(d) =>
-						colorOverridesRef.current?.get(d.id)?.fill ??
-						d.fillColor ??
-						'#FFFFFF'
-				)
+				.attr('fill', effectiveNodeFill)
 				.attr(
 					'stroke',
 					(d) =>
@@ -2353,13 +2439,37 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 					override?.fill ?? d.fillColor ?? '#FFFFFF';
 				const effectiveBorder =
 					override?.border ?? d.borderColor ?? '#1A1A1A';
+				const rawHatch =
+					override?.hatch !== undefined ? override.hatch : d.hatch;
+				const effectiveHatch =
+					rawHatch === 'none' ? undefined : rawHatch;
 
 				// Use .node-shape to avoid accidentally targeting the
 				// .selection-ring element which is also a rect/circle
 				const shape = d3.select(this).select<SVGElement>('.node-shape');
 				if (shape.empty()) return;
 
-				shape.attr('fill', effectiveFill).attr('stroke', effectiveBorder);
+				shape.attr('stroke', effectiveBorder);
+
+				if (effectiveHatch && defsRef.current) {
+					const stripe = darkenColor(effectiveBorder, 0.35);
+					const pid = upsertHatchPattern(
+						defsRef.current,
+						d.id,
+						effectiveHatch,
+						effectiveFill,
+						stripe
+					);
+					shape.attr('fill', `url(#${pid})`);
+				} else {
+					// Remove stale pattern if it exists
+					if (defsRef.current) {
+						d3.select(defsRef.current)
+							.select(`#${sanitizePatternId(d.id)}`)
+							.remove();
+					}
+					shape.attr('fill', effectiveFill);
+				}
 			});
 		}, [colorOverrides]);
 

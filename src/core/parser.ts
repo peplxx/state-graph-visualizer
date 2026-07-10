@@ -38,6 +38,7 @@ function toGraphNode(node: GraphNodeYaml): GraphNode {
 		isInitial: Boolean(node.initial ?? node.isInitial ?? false),
 		borderColor: node.borderColor,
 		fillColor: node.fillColor,
+		hatch: node.hatch,
 		metadata: node.metadata
 	};
 }
@@ -78,7 +79,7 @@ export function parseFile(content: string): GraphFile {
  */
 export function serializeToYAML(
 	graphFile: GraphFile,
-	colorOverrides?: Map<string, { fill?: string; border?: string }>
+	colorOverrides?: Map<string, { fill?: string; border?: string; hatch?: string }>
 ): string {
 	// Reconstruct children / loopback edge lists per node
 	const childrenMap = new Map<string, string[]>();
@@ -118,11 +119,19 @@ export function serializeToYAML(
 		const effectiveFill = override?.fill ?? node.fillColor;
 		const effectiveBorder = override?.border ?? node.borderColor;
 
+		const effectiveHatch = (() => {
+			const ov = colorOverrides?.get(node.id)?.hatch;
+			if (ov === 'none') return undefined;
+			if (ov === 'single' || ov === 'cross') return ov;
+			return node.hatch;
+		})();
+
 		return {
 			id: node.id,
 			...(node.isInitial ? { initial: true } : {}),
 			...(effectiveFill ? { fillColor: effectiveFill } : {}),
 			...(effectiveBorder ? { borderColor: effectiveBorder } : {}),
+			...(effectiveHatch ? { hatch: effectiveHatch } : {}),
 			...(node.label ? { label: node.label } : {}),
 			tasks: node.tasks.map((t) => ({
 				c: t.task.c,

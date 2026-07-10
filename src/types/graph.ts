@@ -20,6 +20,8 @@ export interface NodeTaskDisplay {
 	release: ReleaseIndicator;
 }
 
+export type HatchStyle = 'single' | 'cross';
+
 export interface GraphNode {
 	id: string;
 	label?: string;
@@ -27,6 +29,7 @@ export interface GraphNode {
 	isInitial?: boolean;
 	borderColor?: string;
 	fillColor?: string;
+	hatch?: HatchStyle;
 	metadata?: Record<string, unknown>;
 }
 
@@ -59,6 +62,7 @@ export interface SelectedNodeData {
 	isInitial: boolean;
 	borderColor?: string;
 	fillColor?: string;
+	hatch?: HatchStyle;
 	indegree: number;
 	outdegree: number;
 }

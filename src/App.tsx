@@ -33,7 +33,12 @@ export default function App() {
 	>(new Map());
 
 	const handleColorChange = useCallback(
-		(nodeIds: string[], fill?: string | null, border?: string | null) => {
+		(
+			nodeIds: string[],
+			fill?: string | null,
+			border?: string | null,
+			hatch?: 'single' | 'cross' | 'none' | null
+		) => {
 			setColorOverrides((prev) => {
 				const next = new Map(prev);
 				for (const id of nodeIds) {
@@ -45,6 +50,10 @@ export default function App() {
 					if (border !== undefined) {
 						if (border === null) delete existing.border;
 						else existing.border = border;
+					}
+					if (hatch !== undefined) {
+						if (hatch === null) delete existing.hatch;
+						else existing.hatch = hatch;
 					}
 					if (Object.keys(existing).length === 0) next.delete(id);
 					else next.set(id, existing);

@@ -142,6 +142,13 @@
             "type": "string",
             "minLength": 1
           },
+          "hatch": {
+            "type": "string",
+            "enum": [
+              "single",
+              "cross"
+            ]
+          },
           "metadata": {
             "type": "object",
             "propertyNames": {
