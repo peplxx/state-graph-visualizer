@@ -4,6 +4,10 @@ import type { LayoutName } from '../core/layoutConfig';
 interface Props {
 	layout: LayoutName;
 	onLayoutChange: (layout: LayoutName) => void;
+	showLoopbacks: boolean;
+	onShowLoopbacksChange: (show: boolean) => void;
+	showNormalEdges: boolean;
+	onShowNormalEdgesChange: (show: boolean) => void;
 	onFit: () => void;
 	onZoomIn: () => void;
 	onZoomOut: () => void;
@@ -15,6 +19,10 @@ interface Props {
 export const Toolbar: React.FC<Props> = ({
 	layout,
 	onLayoutChange,
+	showLoopbacks,
+	onShowLoopbacksChange,
+	showNormalEdges,
+	onShowNormalEdgesChange,
 	onFit,
 	onZoomIn,
 	onZoomOut,
@@ -29,15 +37,38 @@ export const Toolbar: React.FC<Props> = ({
 			placeholder="Find node by ID…"
 			onChange={(e) => onSearch(e.target.value)}
 		/>
-		<select
-			className="layout-select"
-			value={layout}
-			onChange={(e) => onLayoutChange(e.target.value as LayoutName)}
-			title="Layout algorithm"
+		<label className="layout-control">
+			<span>Layout</span>
+			<select
+				className="layout-select"
+				value={layout}
+				onChange={(e) => onLayoutChange(e.target.value as LayoutName)}
+				title="Layout algorithm"
+			>
+				<option value="radial">Radial</option>
+				<option value="tree">Tree</option>
+			</select>
+		</label>
+		<button
+			className={`edge-toggle${showNormalEdges ? ' active' : ''}`}
+			type="button"
+			aria-pressed={showNormalEdges}
+			onClick={() => onShowNormalEdgesChange(!showNormalEdges)}
+			title="Show or hide state transitions"
 		>
-			<option value="dagre">dagre</option>
-			<option value="concentric">concentric</option>
-		</select>
+			<span className="edge-toggle-icon">→</span>
+			Transitions
+		</button>
+		<button
+			className={`edge-toggle${showLoopbacks ? ' active' : ''}`}
+			type="button"
+			aria-pressed={showLoopbacks}
+			onClick={() => onShowLoopbacksChange(!showLoopbacks)}
+			title="Show or hide return transitions"
+		>
+			<span className="edge-toggle-icon">↩</span>
+			Returns
+		</button>
 		<div className="tb-sep" />
 
 		<button className="tb-btn" onClick={onZoomIn} title="Zoom in">

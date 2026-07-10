@@ -13,6 +13,7 @@ nodes:
       - { c: 0, d: 0, release: none }
       - { c: 0, d: 0, release: none }
     children: [n11, n12, n13]
+    borderColor: "#ff0000"
   
   - id: n11
     tasks:

@@ -1,0 +1,214 @@
+schemaVersion: 1
+
+# 2-task preemptive EDF scheduling — state-space reachability graph
+# τ₁: c=1, d=3   τ₂: c=2, d=5   m=1 processor
+system:
+  m: 1
+  tasks:
+    - { c: 1, d: 3, name: "τ₁" }
+    - { c: 2, d: 5, name: "τ₂" }
+
+nodes:
+  # ── Level 0: initial idle state ──────────────────────────────────────────
+  - id: s0
+    initial: true
+    tasks:
+      - { c: 0, d: 0, release: none }
+      - { c: 0, d: 0, release: none }
+    children: [s1, s2, s3]
+
+  # ── Level 1 ───────────────────────────────────────────────────────────────
+  - id: s1
+    tasks:
+      - { c: 1, d: 3, release: up }
+      - { c: 0, d: 0, release: none }
+    children: [s11, s12]
+
+  - id: s2
+    tasks:
+      - { c: 0, d: 0, release: none }
+      - { c: 2, d: 5, release: up }
+    children: [s21, s22, s23]
+
+  - id: s3
+    tasks:
+      - { c: 1, d: 3, release: up }
+      - { c: 2, d: 5, release: up }
+    children: [s31, s32, s33]
+
+  # ── Level 2 ───────────────────────────────────────────────────────────────
+  - id: s11
+    tasks:
+      - { c: 0, d: 2, release: down }
+      - { c: 0, d: 0, release: none }
+    children: [s111, s112]
+
+  - id: s12
+    tasks:
+      - { c: 1, d: 2, release: up }
+      - { c: 0, d: 0, release: none }
+    children: [s121, s122]
+
+  - id: s21
+    tasks:
+      - { c: 0, d: 0, release: none }
+      - { c: 1, d: 4, release: down }
+    children: [s211, s212]
+
+  - id: s22
+    tasks:
+      - { c: 0, d: 0, release: none }
+      - { c: 2, d: 4, release: up }
+    children: [s221, s222]
+
+  - id: s23
+    tasks:
+      - { c: 1, d: 3, release: up }
+      - { c: 1, d: 4, release: down }
+    children: [s231, s232]
+
+  - id: s31
+    tasks:
+      - { c: 0, d: 2, release: down }
+      - { c: 1, d: 4, release: down }
+    children: [s311, s312]
+
+  - id: s32
+    tasks:
+      - { c: 0, d: 2, release: down }
+      - { c: 2, d: 4, release: up }
+    children: [s321, s322]
+
+  - id: s33
+    tasks:
+      - { c: 1, d: 2, release: up }
+      - { c: 1, d: 4, release: down }
+    children: [s331, s332]
+
+  # ── Level 3 ───────────────────────────────────────────────────────────────
+  - id: s111
+    tasks:
+      - { c: 0, d: 1, release: down }
+      - { c: 0, d: 0, release: none }
+    loopback: [s0]
+
+  - id: s112
+    tasks:
+      - { c: 1, d: 3, release: up }
+      - { c: 0, d: 0, release: none }
+    children: [s1121]
+
+  - id: s121
+    tasks:
+      - { c: 0, d: 1, release: down }
+      - { c: 0, d: 0, release: none }
+    loopback: [s0]
+
+  - id: s122
+    tasks:
+      - { c: 1, d: 1, release: up }
+      - { c: 0, d: 0, release: none }
+    loopback: [s1]
+
+  - id: s211
+    tasks:
+      - { c: 0, d: 0, release: none }
+      - { c: 0, d: 3, release: down }
+    loopback: [s0]
+
+  - id: s212
+    tasks:
+      - { c: 1, d: 3, release: up }
+      - { c: 1, d: 3, release: down }
+    children: [s2121]
+
+  - id: s221
+    tasks:
+      - { c: 0, d: 0, release: none }
+      - { c: 1, d: 3, release: down }
+    loopback: [s0, s2]
+
+  - id: s222
+    tasks:
+      - { c: 0, d: 0, release: none }
+      - { c: 2, d: 3, release: up }
+    children: [s2221]
+
+  - id: s231
+    tasks:
+      - { c: 0, d: 2, release: down }
+      - { c: 0, d: 3, release: down }
+    loopback: [s0]
+
+  - id: s232
+    tasks:
+      - { c: 1, d: 2, release: up }
+      - { c: 0, d: 3, release: down }
+    children: [s2321]
+
+  - id: s311
+    tasks:
+      - { c: 0, d: 1, release: down }
+      - { c: 0, d: 3, release: down }
+    loopback: [s0]
+
+  - id: s312
+    tasks:
+      - { c: 0, d: 1, release: down }
+      - { c: 1, d: 3, release: down }
+    loopback: [s0, s3]
+
+  - id: s321
+    tasks:
+      - { c: 0, d: 1, release: down }
+      - { c: 1, d: 3, release: down }
+    loopback: [s0]
+
+  - id: s322
+    tasks:
+      - { c: 1, d: 3, release: up }
+      - { c: 2, d: 3, release: up }
+    children: [s3221]
+
+  - id: s331
+    tasks:
+      - { c: 0, d: 1, release: down }
+      - { c: 0, d: 3, release: down }
+    loopback: [s0, s31]
+
+  - id: s332
+    tasks:
+      - { c: 1, d: 1, release: up }
+      - { c: 0, d: 3, release: down }
+    loopback: [s1]
+
+  # ── Level 4 (deep leaves) ─────────────────────────────────────────────────
+  - id: s1121
+    tasks:
+      - { c: 0, d: 2, release: down }
+      - { c: 0, d: 0, release: none }
+    loopback: [s0, s11]
+
+  - id: s2121
+    tasks:
+      - { c: 0, d: 2, release: down }
+      - { c: 0, d: 2, release: down }
+    loopback: [s0]
+
+  - id: s2221
+    tasks:
+      - { c: 0, d: 0, release: none }
+      - { c: 1, d: 2, release: down }
+    loopback: [s0, s2]
+
+  - id: s2321
+    tasks:
+      - { c: 0, d: 1, release: down }
+      - { c: 0, d: 2, release: down }
+    loopback: [s0]
+
+  - id: s3221
+    tasks:
+      - { c: 0, d: 2, release: down }
+      - { c: 1, d: 2, release: down }
+    loopback: [s0, s32]

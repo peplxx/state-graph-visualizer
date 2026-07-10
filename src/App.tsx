@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import type { NodeSingular } from 'cytoscape';
+import type { SelectedNodeData } from './types/graph';
 import GraphViewer from './components/GraphViewer';
 import type { GraphViewerHandle } from './components/GraphViewer';
 import { Toolbar } from './components/Toolbar';
@@ -9,33 +9,33 @@ import { Legend } from './components/Legend';
 import { parseFile } from './core/parser';
 import type { GraphFile } from './types/graph';
 import type { LayoutName } from './core/layoutConfig';
+import { normalizeLayoutName } from './core/layoutConfig';
 
 export default function App() {
 	const viewerRef = useRef<GraphViewerHandle>(null);
 
 	const [graphData, setGraphData] = useState<GraphFile | null>(null);
 	const [filename, setFilename] = useState('');
-	const [layout, setLayout] = useState<LayoutName>('dagre');
+	const [layout, setLayout] = useState<LayoutName>('radial');
+	const [showLoopbacks, setShowLoopbacks] = useState(true);
+	const [showNormalEdges, setShowNormalEdges] = useState(true);
 	const [stats, setStats] = useState<{ nodes: number; edges: number } | null>(
 		null
 	);
 	const [error, setError] = useState<string | null>(null);
 	const [showLegend, setShowLegend] = useState(true);
 
-	// Sidebar state — a simple counter forces re-render without passing node as prop
+	// Sidebar state
 	const [sidebarTick, setSidebarTick] = useState(0);
 	const [sidebarOpen, setSidebarOpen] = useState(false);
 
-	// The actual selected node lives in a ref — never causes re-renders by itself
-	const selectedNodeRef = useRef<NodeSingular | null>(null);
+	const selectedNodeRef = useRef<SelectedNodeData | null>(null);
 
-	// Stable callback — defined once, reads/writes refs only, triggers minimal re-render
-	const onNodeClickRef = useRef((node: NodeSingular | null) => {
+	const onNodeClickRef = useRef((node: SelectedNodeData | null) => {
 		selectedNodeRef.current = node;
 		if (node === null) {
 			setSidebarOpen(false);
 		} else {
-			// Increment tick to force Sidebar to re-read the ref with fresh data
 			setSidebarOpen(true);
 			setSidebarTick((t) => t + 1);
 		}
@@ -47,7 +47,9 @@ export default function App() {
 		selectedNodeRef.current = null;
 		setSidebarOpen(false);
 		setError(null);
-		if (graph.layout?.algorithm) setLayout(graph.layout.algorithm);
+		if (graph.layout?.algorithm) {
+			setLayout(normalizeLayoutName(graph.layout.algorithm));
+		}
 	});
 
 	const handleFileInput = useRef((file: File) => {
@@ -105,10 +107,11 @@ export default function App() {
 						<>
 							<Toolbar
 								layout={layout}
-								onLayoutChange={(name) => {
-									setLayout(name);
-									viewerRef.current?.runLayout(name);
-								}}
+								onLayoutChange={setLayout}
+								showLoopbacks={showLoopbacks}
+								onShowLoopbacksChange={setShowLoopbacks}
+								showNormalEdges={showNormalEdges}
+								onShowNormalEdgesChange={setShowNormalEdges}
 								onFit={() => viewerRef.current?.fit()}
 								onZoomIn={() => viewerRef.current?.zoomIn()}
 								onZoomOut={() => viewerRef.current?.zoomOut()}
@@ -119,7 +122,7 @@ export default function App() {
 									a.href = url;
 									a.download =
 										(filename.replace(/\.\w+$/, '') ||
-											'graph') + '.png';
+											'graph') + '.svg';
 									a.click();
 								}}
 								onSearch={(q) => {
@@ -133,6 +136,8 @@ export default function App() {
 								ref={viewerRef}
 								graphData={graphData}
 								layout={layout}
+								showLoopbacks={showLoopbacks}
+								showNormalEdges={showNormalEdges}
 								onNodeClick={onNodeClickRef.current}
 								onStatsChange={setStats}
 							/>

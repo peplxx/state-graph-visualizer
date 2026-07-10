@@ -1,7 +1,19 @@
-export type LayoutName = 'dagre' | 'concentric';
+export type LayoutName = 'radial' | 'tree';
 
 const BASE_RADIUS = 120;
 const RING_GAP = 160;
+
+export function normalizeLayoutName(name: unknown): LayoutName {
+	switch (name) {
+		case 'tree':
+		case 'dagre':
+			return 'tree';
+		case 'radial':
+		case 'concentric':
+		default:
+			return 'radial';
+	}
+}
 
 export function buildLayoutOptions(
 	name: LayoutName,
@@ -11,8 +23,8 @@ export function buildLayoutOptions(
 	const sf = nodeCount > 5000 ? 0.55 : nodeCount > 1000 ? 0.75 : 1.0;
 
 	const bases: Record<LayoutName, Record<string, unknown>> = {
-		dagre: {
-			name: 'dagre',
+		tree: {
+			name: 'tree',
 			rankDir: 'TB',
 			ranker: 'network-simplex',
 			rankSep: 100 * sf,
@@ -21,8 +33,8 @@ export function buildLayoutOptions(
 			animate: false,
 			padding: 120
 		},
-		concentric: {
-			name: 'preset',
+		radial: {
+			name: 'radial',
 			animate: false,
 			padding: 120
 		}
