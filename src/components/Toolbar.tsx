@@ -9,6 +9,8 @@ interface Props {
 	onShowLoopbacksChange: (show: boolean) => void;
 	showNormalEdges: boolean;
 	onShowNormalEdgesChange: (show: boolean) => void;
+	showAreas: boolean;
+	onShowAreasChange: (show: boolean) => void;
 	onFit: () => void;
 	onZoomIn: () => void;
 	onZoomOut: () => void;
@@ -25,6 +27,8 @@ export const Toolbar: React.FC<Props> = ({
 	onShowLoopbacksChange,
 	showNormalEdges,
 	onShowNormalEdgesChange,
+	showAreas,
+	onShowAreasChange,
 	onFit,
 	onZoomIn,
 	onZoomOut,
@@ -84,6 +88,18 @@ export const Toolbar: React.FC<Props> = ({
 					↩
 				</span>
 				Returns
+			</button>
+			<button
+				className={`toolbar-toggle${showAreas ? ' is-active' : ''}`}
+				type="button"
+				aria-pressed={showAreas}
+				onClick={() => onShowAreasChange(!showAreas)}
+				title="Show or hide areas"
+			>
+				<span className="toolbar-toggle-icon" aria-hidden="true">
+					◻
+				</span>
+				Areas
 			</button>
 		</div>
 

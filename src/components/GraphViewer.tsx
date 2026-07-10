@@ -1162,17 +1162,14 @@ function computeGroupConnectivity(
 	};
 }
 
-// ── Convex hull path ─────────────────────────────────────────────────────────
+// ── Convex hull helpers ───────────────────────────────────────────────────────
 
-/**
- * Build a smooth closed SVG path that wraps all given nodes using a convex hull.
- * Returns null if not enough valid node positions are found.
- */
-function computeHullPath(
+/** Sample points around each node and return the convex hull polygon vertices. */
+function computeHull(
 	nodeIds: string[],
 	nodeMap: Map<string, NodePos>,
 	pad = 24
-): string | null {
+): [number, number][] | null {
 	const points: [number, number][] = [];
 	for (const id of nodeIds) {
 		const n = nodeMap.get(id);
@@ -1188,14 +1185,114 @@ function computeHullPath(
 		}
 	}
 	if (points.length < 3) return null;
-	const hull = d3.polygonHull(points);
-	if (!hull) return null;
+	return d3.polygonHull(points) ?? null;
+}
+
+/** Convert hull vertices to a smooth closed SVG path string. */
+function hullToPath(hull: [number, number][]): string | null {
 	const line = d3
 		.line<[number, number]>()
 		.x((d) => d[0])
 		.y((d) => d[1])
 		.curve(d3.curveBasisClosed);
 	return line(hull) ?? null;
+}
+
+type LabelTransform = {
+	x: number;
+	y: number;
+	rotate: number;
+	anchor: 'start' | 'middle' | 'end';
+};
+
+/**
+ * Given the convex hull vertices and a label position, return the SVG transform
+ * (translate + rotate) so the label sits just outside the nearest hull edge,
+ * rotated to follow that edge.
+ *
+ * Edge selection: score each edge by dot(outwardNormal, desiredDirection).
+ * This correctly picks corner edges for positions like 'bottom-left'.
+ */
+function getLabelTransform(
+	hull: [number, number][],
+	labelPos: LabelPosition
+): LabelTransform {
+	if (hull.length === 0) return { x: 0, y: 0, rotate: 0, anchor: 'middle' };
+
+	const centX = hull.reduce((s, p) => s + p[0], 0) / hull.length;
+	const centY = hull.reduce((s, p) => s + p[1], 0) / hull.length;
+
+	if (labelPos === 'center') {
+		return { x: centX, y: centY, rotate: 0, anchor: 'middle' };
+	}
+
+	// Target direction for each position (SVG coords: y grows downward)
+	// Normalized so corner directions have equal weight on both axes.
+	const S2 = Math.SQRT2 / 2; // 1/√2 ≈ 0.707
+	const dirX: Record<string, number> = {
+		'top-center': 0, 'top-left': -S2, 'top-right': S2,
+		'bottom-center': 0, 'bottom-left': -S2, 'bottom-right': S2,
+	};
+	const dirY: Record<string, number> = {
+		'top-center': -1, 'top-left': -S2, 'top-right': -S2,
+		'bottom-center': 1, 'bottom-left': S2, 'bottom-right': S2,
+	};
+	const tdx = dirX[labelPos] ?? 0;
+	const tdy = dirY[labelPos] ?? 0;
+
+	// Find the edge whose outward normal best aligns with the target direction
+	let bestIdx = -1;
+	let bestScore = -Infinity;
+	for (let i = 0; i < hull.length; i++) {
+		const a = hull[i];
+		const b = hull[(i + 1) % hull.length];
+		const ex = b[0] - a[0];
+		const ey = b[1] - a[1];
+		const eLen = Math.sqrt(ex * ex + ey * ey);
+		if (eLen === 0) continue;
+		const mx = (a[0] + b[0]) / 2;
+		const my = (a[1] + b[1]) / 2;
+		// Candidate outward normal (one of two perps)
+		const n1x = -ey / eLen;
+		const n1y =  ex / eLen;
+		const inward = n1x * (centX - mx) + n1y * (centY - my) > 0;
+		const nx = inward ? -n1x : n1x;
+		const ny = inward ? -n1y : n1y;
+		const score = nx * tdx + ny * tdy;
+		if (score > bestScore) { bestScore = score; bestIdx = i; }
+	}
+
+	const va = hull[bestIdx];
+	const vb = hull[(bestIdx + 1) % hull.length];
+	const ex = vb[0] - va[0];
+	const ey = vb[1] - va[1];
+	const eLen = Math.sqrt(ex * ex + ey * ey);
+	const mx = (va[0] + vb[0]) / 2;
+	const my = (va[1] + vb[1]) / 2;
+
+	// Outward normal for placement
+	const n1x = -ey / eLen;
+	const n1y =  ex / eLen;
+	const inward = n1x * (centX - mx) + n1y * (centY - my) > 0;
+	const normX = inward ? -n1x : n1x;
+	const normY = inward ? -n1y : n1y;
+
+	const OUTSET = 14; // px outside the hull boundary
+	const x = mx + normX * OUTSET;
+	const y = my + normY * OUTSET;
+
+	// Edge angle, normalized to [-90, 90] so text is never upside-down
+	let angle = Math.atan2(ey, ex) * 180 / Math.PI;
+	if (angle >  90) angle -= 180;
+	if (angle < -90) angle += 180;
+
+	// '-left': text hangs to the left of the anchor point → anchor='end'
+	// '-right': text hangs to the right → anchor='start'
+	const anchor: 'start' | 'middle' | 'end' =
+		labelPos.endsWith('-left')  ? 'end'   :
+		labelPos.endsWith('-right') ? 'start' : 'middle';
+
+	return { x, y, rotate: angle, anchor };
 }
 
 // ── Hatch pattern helpers ─────────────────────────────────────────────────────
@@ -1229,7 +1326,7 @@ function upsertHatchPattern(
 	stripeColor: string
 ): string {
 	const id = sanitizePatternId(nodeId);
-	const N = 10;
+	const N = 16;
 	const defs = d3.select(defsEl);
 	let pat = defs.select<SVGPatternElement>(`#${id}`);
 	if (pat.empty()) {
@@ -1266,6 +1363,95 @@ function upsertHatchPattern(
 	return id;
 }
 
+const HATCH_STRIDE = 16;
+
+/**
+ * Draw hatch lines into `group`, clipped to the hull bounding box.
+ * The group must already have a clip-path set.
+ */
+function drawHatchLines(
+	group: d3.Selection<SVGGElement, unknown, null, undefined>,
+	hull: [number, number][],
+	hatch: 'single' | 'cross',
+	color: string
+): void {
+	const xs = hull.map((p) => p[0]);
+	const ys = hull.map((p) => p[1]);
+	const pad = HATCH_STRIDE;
+	const bx1 = Math.min(...xs) - pad;
+	const bx2 = Math.max(...xs) + pad;
+	const by1 = Math.min(...ys) - pad;
+	const by2 = Math.max(...ys) + pad;
+	// '/' lines: y = c − x
+	for (let c = bx1 + by1; c <= bx2 + by2; c += HATCH_STRIDE) {
+		group.append('line')
+			.attr('x1', bx1).attr('y1', c - bx1)
+			.attr('x2', bx2).attr('y2', c - bx2)
+			.attr('stroke', color)
+			.attr('stroke-width', 1.5);
+	}
+	if (hatch === 'cross') {
+		// '\' lines: y = x + c
+		for (let c = by1 - bx2; c <= by2 - bx1; c += HATCH_STRIDE) {
+			group.append('line')
+				.attr('x1', bx1).attr('y1', bx1 + c)
+				.attr('x2', bx2).attr('y2', bx2 + c)
+				.attr('stroke', color)
+				.attr('stroke-width', 1.5);
+		}
+	}
+}
+
+/**
+ * Build (or rebuild) the hatch overlay group for one area in `areasHatchLayer`.
+ * Creates a <clipPath> in defs and draws explicit lines clipped to the hull —
+ * avoids SVG pattern rendering issues entirely.
+ */
+function buildAreaHatchOverlay(
+	hatchLayer: d3.Selection<d3.BaseType, unknown, null, undefined>,
+	defsEl: SVGDefsElement,
+	areaId: string,
+	hull: [number, number][],
+	hullPath: string,
+	hatch: 'single' | 'cross',
+	color: string
+): void {
+	const safeId = areaId.replace(/[^a-zA-Z0-9-]/g, '_');
+	const clipId = `clip-hatch-${safeId}`;
+	const defs = d3.select(defsEl);
+
+	// Remove any stale clip-path + group for this area
+	defs.select(`#${clipId}`).remove();
+	hatchLayer.select(`.area-hatch[data-area-id="${areaId}"]`).remove();
+
+	// Create clip path from the hull outline
+	defs.append('clipPath')
+		.attr('id', clipId)
+		.append('path')
+		.attr('d', hullPath);
+
+	// Create the hatch group — lines inside will be clipped to hull
+	const group = hatchLayer
+		.append<SVGGElement>('g')
+		.attr('class', 'area-hatch')
+		.attr('data-area-id', areaId)
+		.attr('clip-path', `url(#${clipId})`)
+		.attr('pointer-events', 'none');
+
+	drawHatchLines(group, hull, hatch, color);
+}
+
+/** Remove hatch overlay + its clip-path for one area. */
+function removeAreaHatchOverlay(
+	hatchLayer: d3.Selection<d3.BaseType, unknown, null, undefined>,
+	defsEl: SVGDefsElement,
+	areaId: string
+): void {
+	const safeId = areaId.replace(/[^a-zA-Z0-9-]/g, '_');
+	hatchLayer.select(`.area-hatch[data-area-id="${areaId}"]`).remove();
+	d3.select(defsEl).select(`#clip-hatch-${safeId}`).remove();
+}
+
 // ── Props / handle ────────────────────────────────────────────────────────────
 export interface NodeColorOverride {
 	fill?: string;
@@ -1294,6 +1480,8 @@ interface Props {
 	colorOverrides?: Map<string, NodeColorOverride>;
 	areaOverrides?: Map<string, AreaOverride>;
 	onAreaSelect?: (area: GraphArea | null) => void;
+	showAreas?: boolean;
+	hiddenAreaIds?: Set<string>;
 }
 
 export interface GraphViewerHandle {
@@ -1320,7 +1508,9 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			onStatsChange,
 			colorOverrides,
 			areaOverrides,
-			onAreaSelect
+			onAreaSelect,
+			showAreas = true,
+			hiddenAreaIds,
 		},
 		ref
 	) => {
@@ -1352,6 +1542,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 		colorOverridesRef.current = colorOverrides;
 		const areaOverridesRef = useRef(areaOverrides);
 		areaOverridesRef.current = areaOverrides;
+		const hiddenAreaIdsRef = useRef(hiddenAreaIds);
+		hiddenAreaIdsRef.current = hiddenAreaIds;
 		const onAreaSelectRef = useRef(onAreaSelect);
 		onAreaSelectRef.current = onAreaSelect;
 		// Track which area is currently highlighted as selected
@@ -1631,6 +1823,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				'opacity',
 				0.08
 			);
+			g.select('.areas-layer').style('opacity', 0.2);
+			g.select('.areas-hatch-layer').style('opacity', 0.2);
 		}, []);
 
 		const clearHoverPath = useCallback(() => {
@@ -1644,6 +1838,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				.attr('marker-end', 'url(#arrow-normal)');
 			g.selectAll('.arc-path').style('opacity', 1);
 			g.selectAll('.arc-trunk').style('opacity', 1);
+			g.select('.areas-layer').style('opacity', null);
+			g.select('.areas-hatch-layer').style('opacity', null);
 		}, []);
 
 		// ── Fit view ──────────────────────────────────────────────────────
@@ -1710,6 +1906,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			g.append('g').attr('class', 'loopback-layer');
 			g.append('g').attr('class', 'edges-layer');
 			g.append('g').attr('class', 'nodes-layer');
+			g.append('g').attr('class', 'areas-hatch-layer'); // hatch overlay — above nodes
 
 			const zoom = d3
 				.zoom<SVGSVGElement, unknown>()
@@ -2202,9 +2399,10 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 
 			// ── Areas ─────────────────────────────────────────────────────
 			const areasLayer = g.select('.areas-layer');
+			const areasHatchLayer = g.select('.areas-hatch-layer');
 			areasLayer.selectAll('*').remove();
+			areasHatchLayer.selectAll('*').remove();
 
-			const AREA_PAD = 24;
 			for (const area of graphData.areas ?? []) {
 				const ov = areaOverridesRef.current?.get(area.id);
 				const effectiveNodeIds = ov?.nodes ?? area.nodeIds;
@@ -2212,21 +2410,6 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 					.map((id) => nodeMap.get(id))
 					.filter((n): n is NodePos => n !== undefined);
 				if (memberNodes.length === 0) continue;
-
-				// Compute bounding box
-				let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-				for (const n of memberNodes) {
-					const hw = (n.shape === 'rect' ? n.width : n.radius * 2) / 2;
-					const hh = (n.shape === 'rect' ? n.height : n.radius * 2) / 2;
-					minX = Math.min(minX, n.x - hw);
-					minY = Math.min(minY, n.y - hh);
-					maxX = Math.max(maxX, n.x + hw);
-					maxY = Math.max(maxY, n.y + hh);
-				}
-				minX -= AREA_PAD; minY -= AREA_PAD;
-				maxX += AREA_PAD; maxY += AREA_PAD;
-				const areaW = maxX - minX;
-				const areaH = maxY - minY;
 
 				const fill = ov?.fill ?? area.fillColor ?? '#F5F5F5';
 				const border = ov?.border ?? area.borderColor ?? '#374151';
@@ -2240,56 +2423,56 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 					.attr('data-area-id', area.id)
 					.style('cursor', 'pointer');
 
-				// Shape
-				let shapeFill = fill;
-				if (effectiveHatch && defsRef.current) {
-					const stripe = darkenColor(border, 0.35);
-					const pid = upsertHatchPattern(
-						defsRef.current,
-						`area-${area.id}`,
-						effectiveHatch,
-						fill,
-						stripe
-					);
-					shapeFill = `url(#${pid})`;
-				}
+				// Per-element animation initial state
+				if (shouldAnimateEntrance) areaGroup.style('opacity', 0);
+				// Preserve per-area hidden state across layout switches
+				if (hiddenAreaIdsRef.current?.has(area.id)) areaGroup.style('display', 'none');
 
+				// Compute hull once for both shape and label
+				const hull = computeHull(effectiveNodeIds, nodeMap);
+				const hullPath = hull ? hullToPath(hull) : null;
+
+				// Shape
+				// Shape — always solid fill; hatch goes to overlay layer above nodes
 				const isSelectedArea = selectedAreaIdRef.current === area.id;
-				const hullPath = computeHullPath(effectiveNodeIds, nodeMap);
 				areaGroup
 					.append('path')
 					.attr('class', 'area-shape')
 					.attr('data-base-stroke', border)
 					.attr('d', hullPath ?? '')
-					.attr('fill', shapeFill)
+					.attr('fill', fill)
 					.attr('stroke', isSelectedArea ? '#9b2e23' : border)
 					.attr('stroke-width', isSelectedArea ? 2.5 : 1.5)
 					.attr('stroke-dasharray', null);
 
-				// Label
-				if (area.label) {
-					type LA = { x: number; y: number; anchor: string; baseline: string };
-					const cx = minX + areaW / 2;
-					const cy = minY + areaH / 2;
-					const PAD_I = 10;
-					const labelAttrs: Record<string, LA> = {
-						'top-left':      { x: minX + PAD_I, y: minY + PAD_I, anchor: 'start',  baseline: 'hanging' },
-						'top-center':    { x: cx,           y: minY + PAD_I, anchor: 'middle', baseline: 'hanging' },
-						'top-right':     { x: maxX - PAD_I, y: minY + PAD_I, anchor: 'end',    baseline: 'hanging' },
-						'center':        { x: cx,           y: cy,           anchor: 'middle', baseline: 'central' },
-						'bottom-left':   { x: minX + PAD_I, y: maxY - PAD_I, anchor: 'start',  baseline: 'auto'    },
-						'bottom-center': { x: cx,           y: maxY - PAD_I, anchor: 'middle', baseline: 'auto'    },
-						'bottom-right':  { x: maxX - PAD_I, y: maxY - PAD_I, anchor: 'end',    baseline: 'auto'    },
-					};
-					const la = labelAttrs[labelPos] ?? labelAttrs['top-left'];
+				// Hatch overlay — rendered above nodes in areas-hatch-layer
+				if (effectiveHatch && defsRef.current && hull && hullPath) {
+					buildAreaHatchOverlay(
+						areasHatchLayer,
+						defsRef.current,
+						area.id,
+						hull,
+						hullPath,
+						effectiveHatch,
+						darkenColor(border, 0.35)
+					);
+					const hatchEl = areasHatchLayer.select(`.area-hatch[data-area-id="${area.id}"]`);
+					if (shouldAnimateEntrance) hatchEl.style('opacity', 0);
+					if (hiddenAreaIdsRef.current?.has(area.id)) hatchEl.style('display', 'none');
+				}
+
+				// Label — sits on the hull edge, rotated to follow it
+				if (area.label && hull) {
+					const lt = getLabelTransform(hull, labelPos);
 					areaGroup
 						.append('text')
 						.attr('class', 'area-label')
-						.attr('x', la.x).attr('y', la.y)
-						.attr('text-anchor', la.anchor)
-						.attr('dominant-baseline', la.baseline)
+						.attr('transform', `translate(${lt.x},${lt.y}) rotate(${lt.rotate})`)
+						.attr('text-anchor', lt.anchor)
+						.attr('dominant-baseline', 'central')
 						.attr('font-size', '12px')
 						.attr('font-weight', '600')
+						.attr('font-style', 'italic')
 						.attr('fill', border)
 						.attr('pointer-events', 'none')
 						.text(area.label);
@@ -2561,6 +2744,22 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 					(bundle) => bundle.id,
 					'7,6'
 				);
+
+				// Areas fade in after nodes are mostly visible
+				areasLayer.selectAll<SVGGElement, unknown>('.area-group')
+					.interrupt('area-entrance')
+					.transition('area-entrance')
+					.delay(80)
+					.duration(ENTRANCE_DURATION_MS)
+					.ease(d3.easeCubicOut)
+					.style('opacity', 1);
+				areasHatchLayer.selectAll<SVGGElement, unknown>('.area-hatch')
+					.interrupt('area-entrance')
+					.transition('area-entrance')
+					.delay(80)
+					.duration(ENTRANCE_DURATION_MS)
+					.ease(d3.easeCubicOut)
+					.style('opacity', 1);
 			} else {
 				nodeGroups.interrupt('node-entrance');
 				nodeGroups.style('opacity', 1);
@@ -2575,6 +2774,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 					.attr('opacity', 1)
 					.attr('stroke-dasharray', '7,6')
 					.attr('stroke-dashoffset', null);
+				areasLayer.selectAll('.area-group').interrupt('area-entrance').style('opacity', null);
+				areasHatchLayer.selectAll('.area-hatch').interrupt('area-entrance').style('opacity', null);
 			}
 
 			// ── Events ────────────────────────────────────────────────────
@@ -2719,6 +2920,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 		useEffect(() => {
 			if (!gRef.current) return;
 			const g = d3.select(gRef.current);
+			const hatchLayer = g.select('.areas-hatch-layer');
 			g.selectAll<SVGGElement, unknown>('.area-group').each(function () {
 				const areaId = (this as Element).getAttribute('data-area-id');
 				if (!areaId) return;
@@ -2730,89 +2932,75 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				const shape = d3.select(this).select<SVGPathElement>('.area-shape');
 				if (shape.empty()) return;
 
-				// Recompute hull whenever node membership may have changed
+				// Recompute hull (handles membership changes too)
 				const effectiveIds = ov?.nodes ?? area.nodeIds;
-				const newPath = computeHullPath(effectiveIds, nodePosRef.current);
-				if (newPath) shape.attr('d', newPath);
+				const hull = computeHull(effectiveIds, nodePosRef.current);
+				const hullPath = hull ? hullToPath(hull) : null;
+				if (hullPath) shape.attr('d', hullPath);
 
 				if (!ov) return;
 
 				const baseBorder = shape.attr('data-base-stroke') ?? '#374151';
-				// Use area defaults as fallback so fill+hatch always apply correctly
 				const effectiveFill = ov.fill ?? area.fillColor ?? '#F5F5F5';
 				const effectiveBorder = ov.border ?? baseBorder;
-				// Fall back to YAML hatch if no explicit override
-				const rawHatch =
-					ov.hatch !== undefined ? ov.hatch : area.hatch;
-				const effectiveHatch =
-					rawHatch === 'none' ? undefined : rawHatch;
+				const rawHatch = ov.hatch !== undefined ? ov.hatch : area.hatch;
+				const effectiveHatch = rawHatch === 'none' ? undefined : rawHatch;
 
 				shape.attr('data-base-stroke', effectiveBorder);
 				const isSelected = selectedAreaIdRef.current === areaId;
 				shape.attr('stroke', isSelected ? '#9b2e23' : effectiveBorder);
+				// Area shape fill is always solid — hatch is in overlay layer
+				shape.attr('fill', effectiveFill);
 
-				if (effectiveHatch && defsRef.current) {
-					const stripe = darkenColor(effectiveBorder, 0.35);
-					const pid = upsertHatchPattern(
+				// Update hatch overlay in areas-hatch-layer
+				if (effectiveHatch && defsRef.current && hull && hullPath) {
+					buildAreaHatchOverlay(
+						hatchLayer,
 						defsRef.current,
-						`area-${areaId}`,
+						areaId,
+						hull,
+						hullPath,
 						effectiveHatch,
-						effectiveFill,
-						stripe
+						darkenColor(effectiveBorder, 0.35)
 					);
-					shape.attr('fill', `url(#${pid})`);
-				} else {
-					if (defsRef.current) {
-						d3.select(defsRef.current)
-							.select(`#${sanitizePatternId(`area-${areaId}`)}`)
-							.remove();
-					}
-					shape.attr('fill', effectiveFill);
+				} else if (defsRef.current) {
+					removeAreaHatchOverlay(hatchLayer, defsRef.current, areaId);
 				}
 
-				// Update label position when it changes
-				const labelEl = d3.select(this).select<SVGTextElement>('.area-label');
-				if (!labelEl.empty() && ov.labelPosition !== undefined) {
-					const labelPos = ov.labelPosition;
-					const memberNodes = effectiveIds
-						.map((id) => nodePosRef.current.get(id))
-						.filter((n): n is NodePos => n !== undefined);
-					if (memberNodes.length > 0) {
-						const AREA_PAD_L = 24;
-						let lMinX = Infinity, lMinY = Infinity,
-							lMaxX = -Infinity, lMaxY = -Infinity;
-						for (const n of memberNodes) {
-							const hw = (n.shape === 'rect' ? n.width : n.radius * 2) / 2;
-							const hh = (n.shape === 'rect' ? n.height : n.radius * 2) / 2;
-							lMinX = Math.min(lMinX, n.x - hw);
-							lMinY = Math.min(lMinY, n.y - hh);
-							lMaxX = Math.max(lMaxX, n.x + hw);
-							lMaxY = Math.max(lMaxY, n.y + hh);
-						}
-						lMinX -= AREA_PAD_L; lMinY -= AREA_PAD_L;
-						lMaxX += AREA_PAD_L; lMaxY += AREA_PAD_L;
-						const lcx = (lMinX + lMaxX) / 2;
-						const lcy = (lMinY + lMaxY) / 2;
-						const PAD_I = 10;
-						type LA = { x: number; y: number; anchor: string; baseline: string };
-						const labelAttrs: Record<string, LA> = {
-							'top-left':      { x: lMinX + PAD_I, y: lMinY + PAD_I, anchor: 'start',  baseline: 'hanging' },
-							'top-center':    { x: lcx,           y: lMinY + PAD_I, anchor: 'middle', baseline: 'hanging' },
-							'top-right':     { x: lMaxX - PAD_I, y: lMinY + PAD_I, anchor: 'end',    baseline: 'hanging' },
-							'center':        { x: lcx,           y: lcy,           anchor: 'middle', baseline: 'central' },
-							'bottom-left':   { x: lMinX + PAD_I, y: lMaxY - PAD_I, anchor: 'start',  baseline: 'auto'    },
-							'bottom-center': { x: lcx,           y: lMaxY - PAD_I, anchor: 'middle', baseline: 'auto'    },
-							'bottom-right':  { x: lMaxX - PAD_I, y: lMaxY - PAD_I, anchor: 'end',    baseline: 'auto'    },
-						};
-						const la = labelAttrs[labelPos] ?? labelAttrs['top-left'];
+				// Update label position along hull edge
+				if (ov.labelPosition !== undefined && hull) {
+					const labelEl = d3.select(this).select<SVGTextElement>('.area-label');
+					if (!labelEl.empty()) {
+						const lt = getLabelTransform(hull, ov.labelPosition);
 						labelEl
-							.attr('x', la.x).attr('y', la.y)
-							.attr('text-anchor', la.anchor)
-							.attr('dominant-baseline', la.baseline);
+							.attr('transform', `translate(${lt.x},${lt.y}) rotate(${lt.rotate})`)
+							.attr('text-anchor', lt.anchor)
+							.attr('dominant-baseline', 'central');
 					}
 				}
 			});
 		}, [areaOverrides]);
+
+		// ── Areas visibility ──────────────────────────────────────────────
+		useEffect(() => {
+			if (!gRef.current) return;
+			const g = d3.select(gRef.current);
+			g.select('.areas-layer').style('display', showAreas ? null : 'none');
+			g.select('.areas-hatch-layer').style('display', showAreas ? null : 'none');
+		}, [showAreas]);
+
+		// ── Per-area visibility ───────────────────────────────────────────
+		useEffect(() => {
+			if (!gRef.current) return;
+			const g = d3.select(gRef.current);
+			g.selectAll<SVGGElement, unknown>('.area-group').each(function () {
+				const areaId = (this as Element).getAttribute('data-area-id') ?? '';
+				const hidden = hiddenAreaIds?.has(areaId) ?? false;
+				d3.select(this).style('display', hidden ? 'none' : null);
+				g.select(`.area-hatch[data-area-id="${areaId}"]`)
+					.style('display', hidden ? 'none' : null);
+			});
+		}, [hiddenAreaIds]);
 
 		// ── Imperative handle ─────────────────────────────────────────────
 		useImperativeHandle(ref, () => ({

@@ -966,19 +966,20 @@ body,
 /* ── Label position picker ───────────────────────────────────────────────────── */
 
 .label-pos-grid {
-	display: grid;
-	grid-template-columns: repeat(3, 1fr);
-	gap: 4px;
-	width: 100%;
+	display: inline-grid;
+	grid-template-columns: repeat(3, 22px);
+	grid-template-rows: repeat(3, 22px);
+	gap: 3px;
 }
 
 .label-pos-cell {
-	aspect-ratio: 1;
+	width: 22px;
+	height: 22px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	border: 1.5px solid var(--border);
-	border-radius: 4px;
+	border-radius: 3px;
 	background: var(--toolbar-control-bg);
 	cursor: pointer;
 	transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
@@ -1001,8 +1002,8 @@ body,
 }
 
 .label-pos-dot {
-	width: 6px;
-	height: 6px;
+	width: 5px;
+	height: 5px;
 	border-radius: 50%;
 	background: var(--text-muted);
 	transition: background 0.12s;
@@ -1124,14 +1125,10 @@ body,
 .areas-list-item {
 	display: flex;
 	align-items: center;
-	gap: 8px;
 	width: 100%;
-	padding: 5px 8px;
-	text-align: left;
 	border: 1px solid transparent;
 	border-radius: var(--radius-sm);
 	background: transparent;
-	cursor: pointer;
 	transition: background 0.12s, border-color 0.12s;
 }
 .areas-list-item:hover {
@@ -1141,6 +1138,25 @@ body,
 .areas-list-item.is-selected {
 	background: var(--selection-soft);
 	border-color: rgba(155, 46, 35, 0.25);
+}
+.areas-list-item.is-hidden .areas-list-label {
+	opacity: 0.4;
+}
+.areas-list-item.is-hidden .areas-list-swatch {
+	opacity: 0.3;
+}
+
+.areas-list-item-main {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 5px 8px;
+	background: none;
+	border: none;
+	cursor: pointer;
+	text-align: left;
 }
 
 .areas-list-swatch {
@@ -1158,4 +1174,31 @@ body,
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.areas-list-eye {
+	flex-shrink: 0;
+	width: 24px;
+	height: 24px;
+	margin-right: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: none;
+	border: none;
+	border-radius: var(--radius-sm);
+	cursor: pointer;
+	color: var(--text-muted);
+	opacity: 0;
+	transition: opacity 0.12s, color 0.12s;
+}
+.areas-list-item:hover .areas-list-eye {
+	opacity: 1;
+}
+.areas-list-item.is-hidden .areas-list-eye {
+	opacity: 1;
+	color: var(--text-muted);
+}
+.areas-list-eye:hover {
+	color: var(--text) !important;
 }

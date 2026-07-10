@@ -78,6 +78,7 @@ interface Props {
 	onSelectAreaNodes?: () => void;
 	onAssignNodeToArea?: (areaId: string | null) => void;
 	onCreateArea?: (nodeIds: string[]) => void;
+	onAssignGroupToArea?: (nodeIds: string[], areaId: string | null) => void;
 	onAreaLabelChange?: (label: string) => void;
 	onDeleteArea?: () => void;
 	// Common
@@ -282,6 +283,7 @@ export const Sidebar: React.FC<Props> = ({
 	onSelectAreaNodes,
 	onAssignNodeToArea,
 	onCreateArea,
+	onAssignGroupToArea,
 	onAreaLabelChange,
 	onDeleteArea,
 }) => {
@@ -349,8 +351,8 @@ export const Sidebar: React.FC<Props> = ({
 						placeholder="Add label..."
 					/>
 					{onAreaLabelPositionChange && labelDraft && (
-						<div className="appearance-row" style={{ marginTop: 6 }}>
-							<span className="appearance-row-label" style={{ marginBottom: 6, display: 'block' }}>Position</span>
+						<div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+							<span className="appearance-row-label" style={{ flexShrink: 0 }}>Position</span>
 							<LabelPositionPicker
 								current={aPos}
 								onChange={onAreaLabelPositionChange}
@@ -684,6 +686,38 @@ export const Sidebar: React.FC<Props> = ({
 								Create area from selection
 							</button>
 						)}
+
+						{allAreas && allAreas.length > 0 && onAssignGroupToArea && (() => {
+							const nodeAreaIds = nodes.map((n) =>
+								allAreas.find((a) => a.nodeIds.includes(n.id))?.id ?? null
+							);
+							const allSame = nodeAreaIds.every((id) => id === nodeAreaIds[0]);
+							const currentAreaId = allSame ? (nodeAreaIds[0] ?? '') : '';
+							return (
+								<>
+									<h4 className="section-title">Assign to Area</h4>
+									<select
+										className="area-assign-select"
+										value={currentAreaId}
+										onChange={(e) =>
+											onAssignGroupToArea(nodeIds, e.target.value || null)
+										}
+									>
+										<option value="">— None —</option>
+										{!allSame && (
+											<option value="" disabled>
+												— Mixed —
+											</option>
+										)}
+										{allAreas.map((a) => (
+											<option key={a.id} value={a.id}>
+												{a.label ? `${a.label} (${a.id})` : a.id}
+											</option>
+										))}
+									</select>
+								</>
+							);
+						})()}
 
 						<h4 className="section-title">Selected IDs</h4>
 						<div className="selection-id-list">

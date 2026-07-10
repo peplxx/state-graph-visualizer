@@ -27,6 +27,8 @@ export default function App() {
 	);
 	const [error, setError] = useState<string | null>(null);
 	const [showLegend, setShowLegend] = useState(true);
+	const [showAreas, setShowAreas] = useState(true);
+	const [hiddenAreaIds, setHiddenAreaIds] = useState<Set<string>>(new Set());
 
 	// Color overrides: user-applied node colors on top of YAML data
 	const [colorOverrides, setColorOverrides] = useState<
@@ -120,20 +122,16 @@ export default function App() {
 			if (!graphData) return;
 			setAreaOverrides((prev) => {
 				const next = new Map(prev);
-				// Remove node from all areas first
 				for (const area of graphData.areas ?? []) {
 					const ov = next.get(area.id);
 					const currentNodes = ov?.nodes ?? area.nodeIds;
 					if (currentNodes.includes(nodeId)) {
 						const updated = currentNodes.filter((id) => id !== nodeId);
-						if (updated.length === 0 && !ov) {
-							// no change needed
-						} else {
+						if (updated.length > 0 || ov) {
 							next.set(area.id, { ...ov, nodes: updated });
 						}
 					}
 				}
-				// Add to target area
 				if (areaId) {
 					const targetArea = graphData.areas?.find((a) => a.id === areaId);
 					if (targetArea) {
@@ -142,6 +140,39 @@ export default function App() {
 						if (!currentNodes.includes(nodeId)) {
 							next.set(areaId, { ...ov, nodes: [...currentNodes, nodeId] });
 						}
+					}
+				}
+				return next;
+			});
+		},
+		[graphData]
+	);
+
+	const handleAssignGroupToArea = useCallback(
+		(nodeIds: string[], areaId: string | null) => {
+			if (!graphData) return;
+			setAreaOverrides((prev) => {
+				const next = new Map(prev);
+				// Remove all selected nodes from every area
+				for (const area of graphData.areas ?? []) {
+					const ov = next.get(area.id);
+					const currentNodes = ov?.nodes ?? area.nodeIds;
+					const updated = currentNodes.filter((id) => !nodeIds.includes(id));
+					if (updated.length !== currentNodes.length || ov) {
+						next.set(area.id, { ...ov, nodes: updated });
+					}
+				}
+				// Add all to target area
+				if (areaId) {
+					const targetArea = graphData.areas?.find((a) => a.id === areaId);
+					if (targetArea) {
+						const ov = next.get(areaId);
+						const currentNodes = ov?.nodes ?? targetArea.nodeIds;
+						const merged = [
+							...currentNodes.filter((id) => !nodeIds.includes(id)),
+							...nodeIds,
+						];
+						next.set(areaId, { ...ov, nodes: merged });
 					}
 				}
 				return next;
@@ -222,6 +253,15 @@ export default function App() {
 		setSelectedArea(null);
 	}, [selectedArea, areaOverrides]);
 
+	const handleToggleAreaVisibility = useCallback((areaId: string) => {
+		setHiddenAreaIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(areaId)) next.delete(areaId);
+			else next.add(areaId);
+			return next;
+		});
+	}, []);
+
 	// Sidebar state
 	const [sidebarTick, setSidebarTick] = useState(0);
 	const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -245,6 +285,7 @@ export default function App() {
 		setColorOverrides(new Map()); // reset overrides on new file
 		setAreaOverrides(new Map());
 		setSelectedArea(null);
+		setHiddenAreaIds(new Set());
 		selectionRef.current = null;
 		setSidebarOpen(false);
 		setError(null);
@@ -326,6 +367,8 @@ export default function App() {
 								onShowLoopbacksChange={setShowLoopbacks}
 								showNormalEdges={showNormalEdges}
 								onShowNormalEdgesChange={setShowNormalEdges}
+								showAreas={showAreas}
+								onShowAreasChange={setShowAreas}
 								onFit={() => viewerRef.current?.fit()}
 								onZoomIn={() => viewerRef.current?.zoomIn()}
 								onZoomOut={() => viewerRef.current?.zoomOut()}
@@ -384,6 +427,8 @@ export default function App() {
 								colorOverrides={colorOverrides}
 								areaOverrides={areaOverrides}
 								onAreaSelect={handleAreaSelect}
+								showAreas={showAreas}
+								hiddenAreaIds={hiddenAreaIds}
 							/>
 
 							<label className="reload-btn">
@@ -410,7 +455,9 @@ export default function App() {
 							areas={graphData.areas}
 							areaOverrides={areaOverrides}
 							selectedAreaId={selectedArea?.id}
+							hiddenAreaIds={hiddenAreaIds}
 							onAreaSelect={handleAreaSelect}
+							onToggleAreaVisibility={handleToggleAreaVisibility}
 						/>
 					)}
 					{(sidebarOpen && selectionRef.current) || selectedArea ? (
@@ -440,6 +487,11 @@ export default function App() {
 									: undefined
 							}
 							onCreateArea={handleCreateArea}
+							onAssignGroupToArea={
+								selectionRef.current && selectionRef.current.nodes.length > 1
+									? handleAssignGroupToArea
+									: undefined
+							}
 							onAreaLabelChange={handleAreaLabelChange}
 							onDeleteArea={selectedArea ? handleDeleteArea : undefined}
 						/>
