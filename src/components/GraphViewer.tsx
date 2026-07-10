@@ -12,6 +12,8 @@ import type {
 	GraphFile,
 	GraphNode,
 	GraphEdge,
+	GraphArea,
+	LabelPosition,
 	SelectedNodeData,
 	SelectionState,
 	NodeTaskDisplay
@@ -1160,6 +1162,42 @@ function computeGroupConnectivity(
 	};
 }
 
+// ── Convex hull path ─────────────────────────────────────────────────────────
+
+/**
+ * Build a smooth closed SVG path that wraps all given nodes using a convex hull.
+ * Returns null if not enough valid node positions are found.
+ */
+function computeHullPath(
+	nodeIds: string[],
+	nodeMap: Map<string, NodePos>,
+	pad = 24
+): string | null {
+	const points: [number, number][] = [];
+	for (const id of nodeIds) {
+		const n = nodeMap.get(id);
+		if (!n) continue;
+		const r =
+			n.shape === 'circle'
+				? n.radius
+				: Math.max(n.width / 2, n.height / 2);
+		const er = r + pad;
+		for (let i = 0; i < 12; i++) {
+			const a = (i / 12) * 2 * Math.PI;
+			points.push([n.x + er * Math.cos(a), n.y + er * Math.sin(a)]);
+		}
+	}
+	if (points.length < 3) return null;
+	const hull = d3.polygonHull(points);
+	if (!hull) return null;
+	const line = d3
+		.line<[number, number]>()
+		.x((d) => d[0])
+		.y((d) => d[1])
+		.curve(d3.curveBasisClosed);
+	return line(hull) ?? null;
+}
+
 // ── Hatch pattern helpers ─────────────────────────────────────────────────────
 
 function sanitizePatternId(nodeId: string): string {
@@ -1236,6 +1274,15 @@ export interface NodeColorOverride {
 	hatch?: 'single' | 'cross' | 'none';
 }
 
+export interface AreaOverride {
+	fill?: string;
+	border?: string;
+	hatch?: 'single' | 'cross' | 'none';
+	labelPosition?: LabelPosition;
+	/** Override the area's node membership */
+	nodes?: string[];
+}
+
 interface Props {
 	graphData: GraphFile | null;
 	layout: LayoutName;
@@ -1245,6 +1292,8 @@ interface Props {
 	onSelectionChange?: (selection: SelectionState | null) => void;
 	onStatsChange?: (stats: { nodes: number; edges: number }) => void;
 	colorOverrides?: Map<string, NodeColorOverride>;
+	areaOverrides?: Map<string, AreaOverride>;
+	onAreaSelect?: (area: GraphArea | null) => void;
 }
 
 export interface GraphViewerHandle {
@@ -1254,6 +1303,8 @@ export interface GraphViewerHandle {
 	exportPNG(): string;
 	focusNode(id: string): void;
 	runLayout(name: LayoutName): void;
+	clearSelection(): void;
+	selectNodes(nodeIds: string[]): void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -1267,7 +1318,9 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			enableAnimation,
 			onSelectionChange,
 			onStatsChange,
-			colorOverrides
+			colorOverrides,
+			areaOverrides,
+			onAreaSelect
 		},
 		ref
 	) => {
@@ -1297,6 +1350,12 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 		// Always-current ref to colorOverrides for use inside D3 callbacks
 		const colorOverridesRef = useRef(colorOverrides);
 		colorOverridesRef.current = colorOverrides;
+		const areaOverridesRef = useRef(areaOverrides);
+		areaOverridesRef.current = areaOverrides;
+		const onAreaSelectRef = useRef(onAreaSelect);
+		onAreaSelectRef.current = onAreaSelect;
+		// Track which area is currently highlighted as selected
+		const selectedAreaIdRef = useRef<string | null>(null);
 
 		const [activeLayout, setActiveLayout] = useState<LayoutName>(layout);
 		useEffect(() => {
@@ -1384,6 +1443,32 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			);
 		}, []);
 
+		// ── Area selection helpers ─────────────────────────────────────────
+		const clearAreaSelection = useCallback(() => {
+			if (!gRef.current) return;
+			d3.select(gRef.current)
+				.selectAll<SVGRectElement, unknown>('.area-shape')
+				.attr('stroke-width', 1.5)
+				.attr('stroke', function () {
+					return this.getAttribute('data-base-stroke') ?? '#374151';
+				});
+			selectedAreaIdRef.current = null;
+		}, []);
+
+		const applyAreaSelection = useCallback((areaId: string) => {
+			if (!gRef.current) return;
+			clearAreaSelection();
+			d3.select(gRef.current)
+				.selectAll<SVGRectElement, unknown>('.area-shape')
+				.filter(function () {
+					const group = (this as Element).closest('.area-group');
+					return group?.getAttribute('data-area-id') === areaId;
+				})
+				.attr('stroke', '#9b2e23')
+				.attr('stroke-width', 2.5);
+			selectedAreaIdRef.current = areaId;
+		}, [clearAreaSelection]);
+
 		const applySelection = useCallback(
 			(ids: Set<string>, data: GraphFile) => {
 				if (!gRef.current || ids.size === 0) return;
@@ -1427,6 +1512,10 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 		applySelectionRef.current = applySelection;
 		const clearSelectionRef = useRef(clearSelection);
 		clearSelectionRef.current = clearSelection;
+		const clearAreaSelectionRef = useRef(clearAreaSelection);
+		clearAreaSelectionRef.current = clearAreaSelection;
+		const applyAreaSelectionRef = useRef(applyAreaSelection);
+		applyAreaSelectionRef.current = applyAreaSelection;
 		const emitSelectionRef = useRef(emitSelection);
 		emitSelectionRef.current = emitSelection;
 
@@ -1616,6 +1705,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			const g = svg.append('g').attr('class', 'zoom-group');
 			gRef.current = g.node();
 
+			g.append('g').attr('class', 'areas-layer');
 			g.append('g').attr('class', 'rings-layer');
 			g.append('g').attr('class', 'loopback-layer');
 			g.append('g').attr('class', 'edges-layer');
@@ -1745,6 +1835,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				selectedIdsRef.current = new Set();
 				clearSelectionRef.current();
 				onSelectionChangeRef.current?.(null);
+				clearAreaSelectionRef.current?.();
+				onAreaSelectRef.current?.(null);
 			};
 
 			const cleanupWindowListeners = () => {
@@ -2108,6 +2200,114 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				});
 			}
 
+			// ── Areas ─────────────────────────────────────────────────────
+			const areasLayer = g.select('.areas-layer');
+			areasLayer.selectAll('*').remove();
+
+			const AREA_PAD = 24;
+			for (const area of graphData.areas ?? []) {
+				const ov = areaOverridesRef.current?.get(area.id);
+				const effectiveNodeIds = ov?.nodes ?? area.nodeIds;
+				const memberNodes = effectiveNodeIds
+					.map((id) => nodeMap.get(id))
+					.filter((n): n is NodePos => n !== undefined);
+				if (memberNodes.length === 0) continue;
+
+				// Compute bounding box
+				let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+				for (const n of memberNodes) {
+					const hw = (n.shape === 'rect' ? n.width : n.radius * 2) / 2;
+					const hh = (n.shape === 'rect' ? n.height : n.radius * 2) / 2;
+					minX = Math.min(minX, n.x - hw);
+					minY = Math.min(minY, n.y - hh);
+					maxX = Math.max(maxX, n.x + hw);
+					maxY = Math.max(maxY, n.y + hh);
+				}
+				minX -= AREA_PAD; minY -= AREA_PAD;
+				maxX += AREA_PAD; maxY += AREA_PAD;
+				const areaW = maxX - minX;
+				const areaH = maxY - minY;
+
+				const fill = ov?.fill ?? area.fillColor ?? '#F5F5F5';
+				const border = ov?.border ?? area.borderColor ?? '#374151';
+				const rawHatch = ov?.hatch !== undefined ? ov.hatch : area.hatch;
+				const effectiveHatch = rawHatch === 'none' ? undefined : rawHatch;
+				const labelPos = ov?.labelPosition ?? area.labelPosition ?? 'top-left';
+
+				const areaGroup = areasLayer
+					.append('g')
+					.attr('class', 'area-group')
+					.attr('data-area-id', area.id)
+					.style('cursor', 'pointer');
+
+				// Shape
+				let shapeFill = fill;
+				if (effectiveHatch && defsRef.current) {
+					const stripe = darkenColor(border, 0.35);
+					const pid = upsertHatchPattern(
+						defsRef.current,
+						`area-${area.id}`,
+						effectiveHatch,
+						fill,
+						stripe
+					);
+					shapeFill = `url(#${pid})`;
+				}
+
+				const isSelectedArea = selectedAreaIdRef.current === area.id;
+				const hullPath = computeHullPath(effectiveNodeIds, nodeMap);
+				areaGroup
+					.append('path')
+					.attr('class', 'area-shape')
+					.attr('data-base-stroke', border)
+					.attr('d', hullPath ?? '')
+					.attr('fill', shapeFill)
+					.attr('stroke', isSelectedArea ? '#9b2e23' : border)
+					.attr('stroke-width', isSelectedArea ? 2.5 : 1.5)
+					.attr('stroke-dasharray', null);
+
+				// Label
+				if (area.label) {
+					type LA = { x: number; y: number; anchor: string; baseline: string };
+					const cx = minX + areaW / 2;
+					const cy = minY + areaH / 2;
+					const PAD_I = 10;
+					const labelAttrs: Record<string, LA> = {
+						'top-left':      { x: minX + PAD_I, y: minY + PAD_I, anchor: 'start',  baseline: 'hanging' },
+						'top-center':    { x: cx,           y: minY + PAD_I, anchor: 'middle', baseline: 'hanging' },
+						'top-right':     { x: maxX - PAD_I, y: minY + PAD_I, anchor: 'end',    baseline: 'hanging' },
+						'center':        { x: cx,           y: cy,           anchor: 'middle', baseline: 'central' },
+						'bottom-left':   { x: minX + PAD_I, y: maxY - PAD_I, anchor: 'start',  baseline: 'auto'    },
+						'bottom-center': { x: cx,           y: maxY - PAD_I, anchor: 'middle', baseline: 'auto'    },
+						'bottom-right':  { x: maxX - PAD_I, y: maxY - PAD_I, anchor: 'end',    baseline: 'auto'    },
+					};
+					const la = labelAttrs[labelPos] ?? labelAttrs['top-left'];
+					areaGroup
+						.append('text')
+						.attr('class', 'area-label')
+						.attr('x', la.x).attr('y', la.y)
+						.attr('text-anchor', la.anchor)
+						.attr('dominant-baseline', la.baseline)
+						.attr('font-size', '12px')
+						.attr('font-weight', '600')
+						.attr('fill', border)
+						.attr('pointer-events', 'none')
+						.text(area.label);
+				}
+
+				// Click handler
+				areaGroup.on('click', function (event) {
+					event.stopPropagation();
+					// Clear node selection
+					selectedIdsRef.current = new Set();
+					clearSelectionRef.current();
+					onSelectionChangeRef.current?.(null);
+					// Apply area selection
+					applyAreaSelectionRef.current(area.id);
+					onAreaSelectRef.current?.(area);
+				});
+			}
+
 			// ── Loopback arcs ──────────────────────────────────────────────
 			const loopbackLayer = g.select('.loopback-layer');
 			loopbackLayer.style('display', showLoopbacks ? null : 'none');
@@ -2419,6 +2619,10 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 					return;
 				}
 
+				// Clear area selection when a node is clicked
+				clearAreaSelectionRef.current();
+				onAreaSelectRef.current?.(null);
+
 				let next: Set<string>;
 				if (isAdditiveSelect(event)) {
 					next = new Set(selectedIdsRef.current);
@@ -2458,7 +2662,9 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			showNormalEdges,
 			enableAnimation,
 			clearSelection,
+			clearAreaSelection,
 			applySelection,
+			applyAreaSelection,
 			applyHoverPath,
 			clearHoverPath,
 			fitView,
@@ -2508,6 +2714,105 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				}
 			});
 		}, [colorOverrides]);
+
+		// ── Area overrides effect ─────────────────────────────────────────
+		useEffect(() => {
+			if (!gRef.current) return;
+			const g = d3.select(gRef.current);
+			g.selectAll<SVGGElement, unknown>('.area-group').each(function () {
+				const areaId = (this as Element).getAttribute('data-area-id');
+				if (!areaId) return;
+				const area = graphDataRef.current?.areas?.find(
+					(a) => a.id === areaId
+				);
+				if (!area) return;
+				const ov = areaOverrides?.get(areaId);
+				const shape = d3.select(this).select<SVGPathElement>('.area-shape');
+				if (shape.empty()) return;
+
+				// Recompute hull whenever node membership may have changed
+				const effectiveIds = ov?.nodes ?? area.nodeIds;
+				const newPath = computeHullPath(effectiveIds, nodePosRef.current);
+				if (newPath) shape.attr('d', newPath);
+
+				if (!ov) return;
+
+				const baseBorder = shape.attr('data-base-stroke') ?? '#374151';
+				// Use area defaults as fallback so fill+hatch always apply correctly
+				const effectiveFill = ov.fill ?? area.fillColor ?? '#F5F5F5';
+				const effectiveBorder = ov.border ?? baseBorder;
+				// Fall back to YAML hatch if no explicit override
+				const rawHatch =
+					ov.hatch !== undefined ? ov.hatch : area.hatch;
+				const effectiveHatch =
+					rawHatch === 'none' ? undefined : rawHatch;
+
+				shape.attr('data-base-stroke', effectiveBorder);
+				const isSelected = selectedAreaIdRef.current === areaId;
+				shape.attr('stroke', isSelected ? '#9b2e23' : effectiveBorder);
+
+				if (effectiveHatch && defsRef.current) {
+					const stripe = darkenColor(effectiveBorder, 0.35);
+					const pid = upsertHatchPattern(
+						defsRef.current,
+						`area-${areaId}`,
+						effectiveHatch,
+						effectiveFill,
+						stripe
+					);
+					shape.attr('fill', `url(#${pid})`);
+				} else {
+					if (defsRef.current) {
+						d3.select(defsRef.current)
+							.select(`#${sanitizePatternId(`area-${areaId}`)}`)
+							.remove();
+					}
+					shape.attr('fill', effectiveFill);
+				}
+
+				// Update label position when it changes
+				const labelEl = d3.select(this).select<SVGTextElement>('.area-label');
+				if (!labelEl.empty() && ov.labelPosition !== undefined) {
+					const labelPos = ov.labelPosition;
+					const memberNodes = effectiveIds
+						.map((id) => nodePosRef.current.get(id))
+						.filter((n): n is NodePos => n !== undefined);
+					if (memberNodes.length > 0) {
+						const AREA_PAD_L = 24;
+						let lMinX = Infinity, lMinY = Infinity,
+							lMaxX = -Infinity, lMaxY = -Infinity;
+						for (const n of memberNodes) {
+							const hw = (n.shape === 'rect' ? n.width : n.radius * 2) / 2;
+							const hh = (n.shape === 'rect' ? n.height : n.radius * 2) / 2;
+							lMinX = Math.min(lMinX, n.x - hw);
+							lMinY = Math.min(lMinY, n.y - hh);
+							lMaxX = Math.max(lMaxX, n.x + hw);
+							lMaxY = Math.max(lMaxY, n.y + hh);
+						}
+						lMinX -= AREA_PAD_L; lMinY -= AREA_PAD_L;
+						lMaxX += AREA_PAD_L; lMaxY += AREA_PAD_L;
+						const lcx = (lMinX + lMaxX) / 2;
+						const lcy = (lMinY + lMaxY) / 2;
+						const PAD_I = 10;
+						type LA = { x: number; y: number; anchor: string; baseline: string };
+						const labelAttrs: Record<string, LA> = {
+							'top-left':      { x: lMinX + PAD_I, y: lMinY + PAD_I, anchor: 'start',  baseline: 'hanging' },
+							'top-center':    { x: lcx,           y: lMinY + PAD_I, anchor: 'middle', baseline: 'hanging' },
+							'top-right':     { x: lMaxX - PAD_I, y: lMinY + PAD_I, anchor: 'end',    baseline: 'hanging' },
+							'center':        { x: lcx,           y: lcy,           anchor: 'middle', baseline: 'central' },
+							'bottom-left':   { x: lMinX + PAD_I, y: lMaxY - PAD_I, anchor: 'start',  baseline: 'auto'    },
+							'bottom-center': { x: lcx,           y: lMaxY - PAD_I, anchor: 'middle', baseline: 'auto'    },
+							'bottom-right':  { x: lMaxX - PAD_I, y: lMaxY - PAD_I, anchor: 'end',    baseline: 'auto'    },
+						};
+						const la = labelAttrs[labelPos] ?? labelAttrs['top-left'];
+						labelEl
+							.attr('x', la.x).attr('y', la.y)
+							.attr('text-anchor', la.anchor)
+							.attr('dominant-baseline', la.baseline);
+					}
+				}
+			});
+		}, [areaOverrides]);
 
 		// ── Imperative handle ─────────────────────────────────────────────
 		useImperativeHandle(ref, () => ({
@@ -2573,6 +2878,25 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 
 			runLayout(name: LayoutName) {
 				setActiveLayout(name);
+			},
+
+			clearSelection() {
+				selectedIdsRef.current = new Set();
+				clearSelectionRef.current();
+				onSelectionChangeRef.current?.(null);
+			},
+
+			selectNodes(nodeIds: string[]) {
+				const data = graphDataRef.current;
+				if (!data || nodeIds.length === 0) return;
+				const next = new Set(
+					nodeIds.filter((id) => nodePosRef.current.has(id))
+				);
+				if (next.size === 0) return;
+				selectedIdsRef.current = next;
+				clearAreaSelectionRef.current();
+				applySelection(next, data);
+				emitSelection(next);
 			}
 		}));
 

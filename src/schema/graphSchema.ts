@@ -50,6 +50,27 @@ export const LayoutYamlSchema = z.object({
 	algorithm: z.enum(['dagre', 'concentric']).default('dagre')
 });
 
+export const LabelPositionSchema = z.enum([
+	'top-left',
+	'top-center',
+	'top-right',
+	'center',
+	'bottom-left',
+	'bottom-center',
+	'bottom-right'
+]);
+
+export const AreaYamlSchema = z.object({
+	id: z.string().min(1, 'Area id is required'),
+	nodes: z.array(z.string()).min(1, 'Area must reference at least one node'),
+	label: z.string().optional(),
+	labelPosition: LabelPositionSchema.optional(),
+	fillColor: z.string().min(1).optional(),
+	borderColor: z.string().min(1).optional(),
+	hatch: z.enum(['single', 'cross']).optional(),
+	metadata: z.record(z.string(), z.unknown()).optional()
+});
+
 export const GraphNodeYamlSchema = z.object({
 	id: z.string().min(1, 'Node id is required'),
 	initial: z.boolean().optional(),
@@ -71,6 +92,7 @@ export const GraphFileYamlSchema = z
 		nodes: z
 			.array(GraphNodeYamlSchema)
 			.min(1, 'At least one node is required'),
+		areas: z.array(AreaYamlSchema).optional().default([]),
 		layout: LayoutYamlSchema.optional()
 	})
 	.superRefine((data, ctx) => {
@@ -123,6 +145,28 @@ export const GraphFileYamlSchema = z
 				}
 			}
 		}
+
+		// Validate area node references
+		const areaIds = new Set<string>();
+		for (const [areaIndex, area] of (data.areas ?? []).entries()) {
+			if (areaIds.has(area.id)) {
+				ctx.addIssue({
+					code: 'custom',
+					message: `Duplicate area id: ${area.id}`,
+					path: ['areas']
+				});
+			}
+			areaIds.add(area.id);
+			for (const [nIdx, nodeId] of area.nodes.entries()) {
+				if (!idSet.has(nodeId)) {
+					ctx.addIssue({
+						code: 'custom',
+						message: `Unknown node "${nodeId}" referenced from area "${area.id}"`,
+						path: ['areas', areaIndex, 'nodes', nIdx]
+					});
+				}
+			}
+		}
 	});
 
 export type GraphFileYaml = z.infer<typeof GraphFileYamlSchema>;
@@ -130,6 +174,7 @@ export type GraphNodeYaml = z.infer<typeof GraphNodeYamlSchema>;
 export type SystemConfigYaml = z.infer<typeof SystemConfigYamlSchema>;
 export type LayoutYaml = z.infer<typeof LayoutYamlSchema>;
 export type NodeTaskYaml = z.infer<typeof NodeTaskYamlSchema>;
+export type AreaYaml = z.infer<typeof AreaYamlSchema>;
 
 export function formatZodErrors(error: z.ZodError): string {
 	return error.issues

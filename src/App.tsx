@@ -1,12 +1,13 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
-import type { SelectionState } from './types/graph';
+import type { SelectionState, GraphArea, LabelPosition } from './types/graph';
 import GraphViewer from './components/GraphViewer';
-import type { GraphViewerHandle, NodeColorOverride } from './components/GraphViewer';
+import type { GraphViewerHandle, NodeColorOverride, AreaOverride } from './components/GraphViewer';
 import { Toolbar } from './components/Toolbar';
 import { Sidebar } from './components/Sidebar';
 import { FileLoader } from './components/FileLoader';
 import { Legend } from './components/Legend';
+import { AreasList } from './components/AreasList';
 import { parseFile, serializeToYAML } from './core/parser';
 import type { GraphFile } from './types/graph';
 import type { LayoutName } from './core/layoutConfig';
@@ -64,6 +65,163 @@ export default function App() {
 		[]
 	);
 
+	// Area overrides and selection
+	const [areaOverrides, setAreaOverrides] = useState<Map<string, AreaOverride>>(new Map());
+	const [selectedArea, setSelectedArea] = useState<GraphArea | null>(null);
+
+	const handleAreaColorChange = useCallback(
+		(
+			fill?: string | null,
+			border?: string | null,
+			hatch?: 'single' | 'cross' | 'none' | null
+		) => {
+			if (!selectedArea) return;
+			const areaId = selectedArea.id;
+			setAreaOverrides((prev) => {
+				const next = new Map(prev);
+				const existing = { ...next.get(areaId) };
+				if (fill !== undefined) {
+					if (fill === null) delete existing.fill;
+					else existing.fill = fill;
+				}
+				if (border !== undefined) {
+					if (border === null) delete existing.border;
+					else existing.border = border;
+				}
+				if (hatch !== undefined) {
+					if (hatch === null) delete existing.hatch;
+					else existing.hatch = hatch;
+				}
+				if (Object.keys(existing).length === 0) next.delete(areaId);
+				else next.set(areaId, existing);
+				return next;
+			});
+		},
+		[selectedArea]
+	);
+
+	const handleAreaLabelPositionChange = useCallback(
+		(pos: LabelPosition) => {
+			if (!selectedArea) return;
+			const areaId = selectedArea.id;
+			setAreaOverrides((prev) => {
+				const next = new Map(prev);
+				const existing = { ...next.get(areaId) };
+				existing.labelPosition = pos;
+				next.set(areaId, existing);
+				return next;
+			});
+		},
+		[selectedArea]
+	);
+
+	const handleAssignNodeToArea = useCallback(
+		(nodeId: string, areaId: string | null) => {
+			if (!graphData) return;
+			setAreaOverrides((prev) => {
+				const next = new Map(prev);
+				// Remove node from all areas first
+				for (const area of graphData.areas ?? []) {
+					const ov = next.get(area.id);
+					const currentNodes = ov?.nodes ?? area.nodeIds;
+					if (currentNodes.includes(nodeId)) {
+						const updated = currentNodes.filter((id) => id !== nodeId);
+						if (updated.length === 0 && !ov) {
+							// no change needed
+						} else {
+							next.set(area.id, { ...ov, nodes: updated });
+						}
+					}
+				}
+				// Add to target area
+				if (areaId) {
+					const targetArea = graphData.areas?.find((a) => a.id === areaId);
+					if (targetArea) {
+						const ov = next.get(areaId);
+						const currentNodes = ov?.nodes ?? targetArea.nodeIds;
+						if (!currentNodes.includes(nodeId)) {
+							next.set(areaId, { ...ov, nodes: [...currentNodes, nodeId] });
+						}
+					}
+				}
+				return next;
+			});
+		},
+		[graphData]
+	);
+
+	const handleAreaSelect = useCallback(
+		(area: GraphArea | null) => {
+			setSelectedArea(area);
+			if (area) {
+				setSidebarOpen(false);
+				viewerRef.current?.clearSelection();
+			}
+		},
+		[]
+	);
+
+	const handleAreaLabelChange = useCallback(
+		(label: string) => {
+			if (!selectedArea) return;
+			const id = selectedArea.id;
+			setGraphData((prev) =>
+				prev
+					? {
+							...prev,
+							areas: prev.areas?.map((a) =>
+								a.id === id ? { ...a, label: label || undefined } : a
+							)
+						}
+					: prev
+			);
+			setSelectedArea((prev) =>
+				prev ? { ...prev, label: label || undefined } : null
+			);
+		},
+		[selectedArea]
+	);
+
+	const handleDeleteArea = useCallback(() => {
+		if (!selectedArea) return;
+		const id = selectedArea.id;
+		setGraphData((prev) =>
+			prev ? { ...prev, areas: prev.areas?.filter((a) => a.id !== id) } : prev
+		);
+		setAreaOverrides((prev) => {
+			const next = new Map(prev);
+			next.delete(id);
+			return next;
+		});
+		setSelectedArea(null);
+	}, [selectedArea]);
+
+	const handleCreateArea = useCallback((nodeIds: string[]) => {
+		if (!graphData) return;
+		const existingIds = new Set(graphData.areas?.map((a) => a.id) ?? []);
+		let n = (graphData.areas?.length ?? 0) + 1;
+		let newId = `area-${n}`;
+		while (existingIds.has(newId)) {
+			n += 1;
+			newId = `area-${n}`;
+		}
+		const newArea = { id: newId, nodeIds, labelPosition: 'top-left' as const };
+		setGraphData((prev) =>
+			prev ? { ...prev, areas: [...(prev.areas ?? []), newArea] } : prev
+		);
+		setSelectedArea(newArea);
+		setSidebarOpen(false);
+		viewerRef.current?.clearSelection();
+	}, [graphData]);
+
+	const handleSelectAreaNodes = useCallback(() => {
+		if (!selectedArea) return;
+		const ov = areaOverrides.get(selectedArea.id);
+		const nodeIds = ov?.nodes ?? selectedArea.nodeIds;
+		viewerRef.current?.selectNodes(nodeIds);
+		setSelectedArea(null);
+	}, [selectedArea, areaOverrides]);
+
 	// Sidebar state
 	const [sidebarTick, setSidebarTick] = useState(0);
 	const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -77,6 +235,7 @@ export default function App() {
 		} else {
 			setSidebarOpen(true);
 			setSidebarTick((t) => t + 1);
+			setSelectedArea(null); // clear area selection when node selected
 		}
 	});
 
@@ -84,6 +243,8 @@ export default function App() {
 		setGraphData(graph);
 		setFilename(name);
 		setColorOverrides(new Map()); // reset overrides on new file
+		setAreaOverrides(new Map());
+		setSelectedArea(null);
 		selectionRef.current = null;
 		setSidebarOpen(false);
 		setError(null);
@@ -183,7 +344,8 @@ export default function App() {
 										? () => {
 												const yaml = serializeToYAML(
 													graphData,
-													colorOverrides
+													colorOverrides,
+													areaOverrides
 												);
 												const blob = new Blob([yaml], {
 													type: 'text/yaml'
@@ -220,6 +382,8 @@ export default function App() {
 								onSelectionChange={onSelectionChangeRef.current}
 								onStatsChange={setStats}
 								colorOverrides={colorOverrides}
+								areaOverrides={areaOverrides}
+								onAreaSelect={handleAreaSelect}
 							/>
 
 							<label className="reload-btn">
@@ -241,16 +405,45 @@ export default function App() {
 				{/* ── Side panels ── */}
 				<aside className="side-panels">
 					{showLegend && <Legend />}
-					{sidebarOpen && selectionRef.current && (
-						<Sidebar
-							key={sidebarTick}
-							selection={selectionRef.current}
-							systemConfig={graphData?.system}
-							onClose={() => setSidebarOpen(false)}
-							colorOverrides={colorOverrides}
-							onColorChange={handleColorChange}
+					{graphData?.areas && graphData.areas.length > 0 && (
+						<AreasList
+							areas={graphData.areas}
+							areaOverrides={areaOverrides}
+							selectedAreaId={selectedArea?.id}
+							onAreaSelect={handleAreaSelect}
 						/>
 					)}
+					{(sidebarOpen && selectionRef.current) || selectedArea ? (
+						<Sidebar
+							key={selectedArea ? `area-${selectedArea.id}` : `node-${sidebarTick}`}
+							selection={selectionRef.current ?? undefined}
+							systemConfig={graphData?.system}
+							onClose={() => {
+								setSidebarOpen(false);
+								setSelectedArea(null);
+								viewerRef.current?.clearSelection();
+							}}
+							colorOverrides={colorOverrides}
+							onColorChange={handleColorChange}
+							selectedArea={selectedArea ?? undefined}
+							areaOverride={selectedArea ? areaOverrides.get(selectedArea.id) : undefined}
+							allAreas={graphData?.areas}
+							onAreaColorChange={handleAreaColorChange}
+							onAreaLabelPositionChange={handleAreaLabelPositionChange}
+							onSelectAreaNodes={selectedArea ? handleSelectAreaNodes : undefined}
+							onAssignNodeToArea={
+								selectionRef.current?.nodes.length === 1
+									? (areaId) => handleAssignNodeToArea(
+										selectionRef.current!.nodes[0].id,
+										areaId
+									)
+									: undefined
+							}
+							onCreateArea={handleCreateArea}
+							onAreaLabelChange={handleAreaLabelChange}
+							onDeleteArea={selectedArea ? handleDeleteArea : undefined}
+						/>
+					) : null}
 				</aside>
 			</div>
 		</div>

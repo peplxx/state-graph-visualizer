@@ -1,6 +1,6 @@
 import React from 'react';
-import type { SelectionState } from '../types/graph';
-import { X, ArrowUp, ArrowDown, Minus, RotateCcw } from 'lucide-react';
+import type { SelectionState, GraphArea, LabelPosition } from '../types/graph';
+import { X, ArrowUp, ArrowDown, Minus, RotateCcw, MousePointer2, Layers, Trash2 } from 'lucide-react';
 
 // ── Color palettes ────────────────────────────────────────────────────────────
 
@@ -44,13 +44,20 @@ interface ColorOverride {
 	hatch?: HatchStyle;
 }
 
+interface AreaOverride {
+	fill?: string;
+	border?: string;
+	hatch?: HatchStyle;
+	labelPosition?: LabelPosition;
+}
+
 interface Props {
-	selection: SelectionState;
+	// Node selection mode
+	selection?: SelectionState;
 	systemConfig?: {
 		tasks: Array<{ c: number; d: number; name?: string }>;
 		m?: number;
 	};
-	onClose: () => void;
 	colorOverrides?: Map<string, ColorOverride>;
 	onColorChange?: (
 		nodeIds: string[],
@@ -58,6 +65,23 @@ interface Props {
 		border?: string | null,
 		hatch?: HatchStyle | null
 	) => void;
+	// Area selection mode
+	selectedArea?: GraphArea;
+	areaOverride?: AreaOverride;
+	allAreas?: GraphArea[];
+	onAreaColorChange?: (
+		fill?: string | null,
+		border?: string | null,
+		hatch?: HatchStyle | null
+	) => void;
+	onAreaLabelPositionChange?: (pos: LabelPosition) => void;
+	onSelectAreaNodes?: () => void;
+	onAssignNodeToArea?: (areaId: string | null) => void;
+	onCreateArea?: (nodeIds: string[]) => void;
+	onAreaLabelChange?: (label: string) => void;
+	onDeleteArea?: () => void;
+	// Common
+	onClose: () => void;
 }
 
 // ── Hatch icons ───────────────────────────────────────────────────────────────
@@ -196,6 +220,52 @@ const HatchRow: React.FC<HatchRowProps> = ({ currentHatch, hasOverride, onChange
 	</div>
 );
 
+// ── Label position picker ─────────────────────────────────────────────────────
+
+const LABEL_POSITIONS: LabelPosition[] = [
+	'top-left', 'top-center', 'top-right',
+	'center', 'center', 'center',
+	'bottom-left', 'bottom-center', 'bottom-right',
+];
+
+// 3x3 grid cells: [row, col] positions with a filled dot for the label spot
+const GRID_CELLS: { pos: LabelPosition | null; row: number; col: number }[] = [
+	{ pos: 'top-left',      row: 0, col: 0 },
+	{ pos: 'top-center',    row: 0, col: 1 },
+	{ pos: 'top-right',     row: 0, col: 2 },
+	{ pos: null,            row: 1, col: 0 },
+	{ pos: 'center',        row: 1, col: 1 },
+	{ pos: null,            row: 1, col: 2 },
+	{ pos: 'bottom-left',   row: 2, col: 0 },
+	{ pos: 'bottom-center', row: 2, col: 1 },
+	{ pos: 'bottom-right',  row: 2, col: 2 },
+];
+
+const LabelPositionPicker: React.FC<{
+	current: LabelPosition;
+	onChange: (p: LabelPosition) => void;
+}> = ({ current, onChange }) => (
+	<div className="label-pos-grid">
+		{GRID_CELLS.map((cell, i) =>
+			cell.pos ? (
+				<button
+					key={i}
+					type="button"
+					className={`label-pos-cell${current === cell.pos ? ' is-active' : ''}`}
+					title={cell.pos}
+					onClick={() => onChange(cell.pos!)}
+					aria-pressed={current === cell.pos}
+					aria-label={`Label position: ${cell.pos}`}
+				>
+					<span className="label-pos-dot" />
+				</button>
+			) : (
+				<div key={i} className="label-pos-cell label-pos-empty" />
+			)
+		)}
+	</div>
+);
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export const Sidebar: React.FC<Props> = ({
@@ -204,8 +274,128 @@ export const Sidebar: React.FC<Props> = ({
 	onClose,
 	colorOverrides,
 	onColorChange,
+	selectedArea,
+	areaOverride,
+	allAreas,
+	onAreaColorChange,
+	onAreaLabelPositionChange,
+	onSelectAreaNodes,
+	onAssignNodeToArea,
+	onCreateArea,
+	onAreaLabelChange,
+	onDeleteArea,
 }) => {
-	const { nodes, group } = selection;
+	// Hook must be at top level (before any early returns).
+	// Sidebar is keyed by area id in App.tsx so this reinitializes on area change.
+	const [labelDraft, setLabelDraft] = React.useState(selectedArea?.label ?? '');
+
+	// ── Area panel ──────────────────────────────────────────────────────
+	if (selectedArea) {
+		const aFill = areaOverride?.fill ?? selectedArea.fillColor ?? '#F5F5F5';
+		const aBorder = areaOverride?.border ?? selectedArea.borderColor ?? '#374151';
+		const aHatch: HatchStyle = (areaOverride?.hatch as HatchStyle | undefined) ?? (selectedArea.hatch as HatchStyle | undefined) ?? 'none';
+		const aPos: LabelPosition = areaOverride?.labelPosition ?? selectedArea.labelPosition ?? 'top-left';
+		const hasFillOv = areaOverride?.fill !== undefined;
+		const hasBorderOv = areaOverride?.border !== undefined;
+		const hasHatchOv = areaOverride?.hatch !== undefined;
+
+		return (
+			<aside className="sidebar">
+				<div className="sidebar-header">
+					<h3>Area</h3>
+					<div style={{ display: 'flex', gap: 4 }}>
+						{onDeleteArea && (
+							<button
+								className="sidebar-close sidebar-delete"
+								onClick={onDeleteArea}
+								title="Delete area"
+							>
+								<Trash2 size={14} />
+							</button>
+						)}
+						<button className="sidebar-close" onClick={onClose}>
+							<X size={16} />
+						</button>
+					</div>
+				</div>
+				<div className="sidebar-body">
+					<div className="detail-row">
+						<span className="detail-label">ID</span>
+						<code className="detail-value">{selectedArea.id}</code>
+					</div>
+					<div className="detail-row">
+						<span className="detail-label">Nodes</span>
+						<span className="badge badge-group">
+							{selectedArea.nodeIds.length}
+						</span>
+					</div>
+					{onSelectAreaNodes && (
+						<button
+							className="area-select-nodes-btn"
+							type="button"
+							onClick={onSelectAreaNodes}
+						>
+							<MousePointer2 size={13} />
+							Select nodes
+						</button>
+					)}
+
+					<h4 className="section-title">Label</h4>
+					<input
+						className="area-label-input"
+						value={labelDraft}
+						onChange={(e) => setLabelDraft(e.target.value)}
+						onBlur={() => onAreaLabelChange?.(labelDraft)}
+						placeholder="Add label..."
+					/>
+					{onAreaLabelPositionChange && labelDraft && (
+						<div className="appearance-row" style={{ marginTop: 6 }}>
+							<span className="appearance-row-label" style={{ marginBottom: 6, display: 'block' }}>Position</span>
+							<LabelPositionPicker
+								current={aPos}
+								onChange={onAreaLabelPositionChange}
+							/>
+						</div>
+					)}
+
+					{onAreaColorChange && (
+						<>
+							<h4 className="section-title">Appearance</h4>
+							<div className="appearance-section">
+								<ColorRow
+									label="Fill"
+									palette={FILL_PALETTE}
+									currentColor={aFill}
+									hasOverride={hasFillOv}
+									onSelect={(c) => onAreaColorChange(c, undefined)}
+									onReset={() => onAreaColorChange(null, undefined)}
+								/>
+								<div className="appearance-divider" />
+								<ColorRow
+									label="Border"
+									palette={BORDER_PALETTE}
+									currentColor={aBorder}
+									hasOverride={hasBorderOv}
+									onSelect={(c) => onAreaColorChange(undefined, c)}
+									onReset={() => onAreaColorChange(undefined, null)}
+								/>
+								<div className="appearance-divider" />
+								<HatchRow
+									currentHatch={aHatch}
+									hasOverride={hasHatchOv}
+									onChange={(h) => onAreaColorChange(undefined, undefined, h)}
+									onReset={() => onAreaColorChange(undefined, undefined, null)}
+								/>
+							</div>
+						</>
+					)}
+				</div>
+			</aside>
+		);
+	}
+
+	// ── Node / group panel ──────────────────────────────────────────────
+	const { nodes, group } = selection ?? { nodes: [], group: undefined };
 	const node = nodes.length === 1 ? nodes[0] : null;
 
 	const nodeIds = nodes.map((n) => n.id);
@@ -275,6 +465,17 @@ export const Sidebar: React.FC<Props> = ({
 									Initial State
 								</span>
 							</div>
+						)}
+
+						{onCreateArea && (
+							<button
+								className="area-select-nodes-btn"
+								type="button"
+								onClick={() => onCreateArea(nodeIds)}
+							>
+								<Layers size={13} />
+								Create area from selection
+							</button>
 						)}
 
 						{onColorChange && (
@@ -394,6 +595,31 @@ export const Sidebar: React.FC<Props> = ({
 								{node.outdegree}
 							</code>
 						</div>
+
+						{allAreas && allAreas.length > 0 && onAssignNodeToArea && (() => {
+							const currentAreaId = allAreas.find((a) =>
+								a.nodeIds.includes(node.id)
+							)?.id ?? null;
+							return (
+								<>
+									<h4 className="section-title">Area</h4>
+									<select
+										className="area-assign-select"
+										value={currentAreaId ?? ''}
+										onChange={(e) =>
+											onAssignNodeToArea(e.target.value || null)
+										}
+									>
+										<option value="">— None —</option>
+										{allAreas.map((a) => (
+											<option key={a.id} value={a.id}>
+												{a.label ? `${a.label} (${a.id})` : a.id}
+											</option>
+										))}
+									</select>
+								</>
+							);
+						})()}
 					</>
 				) : (
 					<>
@@ -446,6 +672,17 @@ export const Sidebar: React.FC<Props> = ({
 									/>
 								</div>
 							</>
+						)}
+
+						{onCreateArea && (
+							<button
+								className="area-select-nodes-btn"
+								type="button"
+								onClick={() => onCreateArea(nodeIds)}
+							>
+								<Layers size={13} />
+								Create area from selection
+							</button>
 						)}
 
 						<h4 className="section-title">Selected IDs</h4>

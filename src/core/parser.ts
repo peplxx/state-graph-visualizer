@@ -1,7 +1,7 @@
 import * as yaml from 'js-yaml';
 import { GraphFileYamlSchema, formatZodErrors } from '../schema/graphSchema';
 import type { GraphNodeYaml } from '../schema/graphSchema';
-import type { GraphFile, GraphEdge, GraphNode } from '../types/graph';
+import type { GraphFile, GraphEdge, GraphNode, GraphArea } from '../types/graph';
 import { toNodeTaskDisplay } from '../types/graph';
 
 function synthesizeEdges(nodes: GraphNodeYaml[]): GraphEdge[] {
@@ -63,6 +63,18 @@ export function parseYAML(content: string): GraphFile {
 		system: parsed.system,
 		nodes: parsed.nodes.map(toGraphNode),
 		edges: synthesizeEdges(parsed.nodes),
+		areas: (parsed.areas ?? []).map(
+			(a): GraphArea => ({
+				id: a.id,
+				nodeIds: a.nodes,
+				label: a.label,
+				labelPosition: a.labelPosition,
+				fillColor: a.fillColor,
+				borderColor: a.borderColor,
+				hatch: a.hatch,
+				metadata: a.metadata
+			})
+		),
 		layout: parsed.layout ?? { algorithm: 'dagre' }
 	};
 }
@@ -75,11 +87,12 @@ export function parseFile(content: string): GraphFile {
 
 /**
  * Serialize a GraphFile back to YAML, merging optional color overrides into
- * the node borderColor / fillColor fields.
+ * the node borderColor / fillColor fields, and area overrides into areas.
  */
 export function serializeToYAML(
 	graphFile: GraphFile,
-	colorOverrides?: Map<string, { fill?: string; border?: string; hatch?: string }>
+	colorOverrides?: Map<string, { fill?: string; border?: string; hatch?: string }>,
+	areaOverrides?: Map<string, { fill?: string; border?: string; hatch?: string; labelPosition?: string; nodes?: string[] }>
 ): string {
 	// Reconstruct children / loopback edge lists per node
 	const childrenMap = new Map<string, string[]>();
@@ -143,6 +156,31 @@ export function serializeToYAML(
 			...(node.metadata ? { metadata: node.metadata } : {})
 		};
 	});
+
+	if (graphFile.areas && graphFile.areas.length > 0) {
+		out.areas = graphFile.areas.map((area) => {
+			const ov = areaOverrides?.get(area.id);
+			const effectiveFill = ov?.fill ?? area.fillColor;
+			const effectiveBorder = ov?.border ?? area.borderColor;
+			const effectiveHatch = (() => {
+				const h = ov?.hatch ?? area.hatch;
+				if (h === 'none') return undefined;
+				return h;
+			})();
+			const effectiveLabelPosition = ov?.labelPosition ?? area.labelPosition;
+			const effectiveNodes = ov?.nodes ?? area.nodeIds;
+			return {
+				id: area.id,
+				nodes: effectiveNodes,
+				...(area.label ? { label: area.label } : {}),
+				...(effectiveLabelPosition ? { labelPosition: effectiveLabelPosition } : {}),
+				...(effectiveFill ? { fillColor: effectiveFill } : {}),
+				...(effectiveBorder ? { borderColor: effectiveBorder } : {}),
+				...(effectiveHatch ? { hatch: effectiveHatch } : {}),
+				...(area.metadata ? { metadata: area.metadata } : {})
+			};
+		});
+	}
 
 	if (graphFile.layout?.algorithm) {
 		out.layout = { algorithm: graphFile.layout.algorithm };

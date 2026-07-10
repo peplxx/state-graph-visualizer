@@ -45,11 +45,32 @@ export interface GraphEdge {
 export type SystemConfig = SystemConfigYaml;
 export type GraphLayout = LayoutYaml;
 
+export type LabelPosition =
+	| 'top-left'
+	| 'top-center'
+	| 'top-right'
+	| 'center'
+	| 'bottom-left'
+	| 'bottom-center'
+	| 'bottom-right';
+
+export interface GraphArea {
+	id: string;
+	nodeIds: string[];
+	label?: string;
+	labelPosition?: LabelPosition;
+	fillColor?: string;
+	borderColor?: string;
+	hatch?: HatchStyle;
+	metadata?: Record<string, unknown>;
+}
+
 export interface GraphFile {
 	schemaVersion?: number;
 	system?: SystemConfig;
 	nodes: GraphNode[];
 	edges: GraphEdge[];
+	areas?: GraphArea[];
 	layout?: GraphLayout;
 }
 
