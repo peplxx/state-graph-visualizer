@@ -8,8 +8,8 @@ export const Legend: React.FC = () => (
 			<span>State transition</span>
 		</div>
 		<div className="legend-item">
-			<span className="legend-line dashed-red" />
-			<span>Job release arc</span>
+			<span className="legend-line dashed-gray" />
+			<span>Cyclic transition</span>
 		</div>
 		<div className="legend-item">
 			<span className="legend-arrow-up">↑</span>

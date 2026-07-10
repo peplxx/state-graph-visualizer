@@ -52,6 +52,17 @@ export interface GraphFile {
 
 export type { GraphFileYaml, GraphNodeYaml, NodeTaskYaml };
 
+export interface SelectedNodeData {
+	id: string;
+	label: string;
+	tasks: NodeTaskDisplay[];
+	isInitial: boolean;
+	borderColor?: string;
+	fillColor?: string;
+	indegree: number;
+	outdegree: number;
+}
+
 export function toNodeTaskDisplay(task: NodeTaskYaml): NodeTaskDisplay {
 	return {
 		task: { c: task.c, d: task.d },

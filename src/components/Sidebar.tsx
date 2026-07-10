@@ -1,10 +1,9 @@
 import React from 'react';
-import type { NodeSingular } from 'cytoscape';
-import type { NodeTaskDisplay } from '../types/graph';
+import type { SelectedNodeData } from '../types/graph';
 import { X, ArrowUp, ArrowDown, Minus } from 'lucide-react';
 
 interface Props {
-	node: NodeSingular | null;
+	node: SelectedNodeData | null;
 	systemConfig?: {
 		tasks: Array<{ c: number; d: number; name?: string }>;
 		m?: number;
@@ -21,9 +20,6 @@ const ReleaseIcon: React.FC<{ rel: string }> = ({ rel }) => {
 export const Sidebar: React.FC<Props> = ({ node, systemConfig, onClose }) => {
 	if (!node) return null;
 
-	const data = node.data();
-	const tasks = data.tasks as NodeTaskDisplay[];
-
 	return (
 		<aside className="sidebar">
 			<div className="sidebar-header">
@@ -36,10 +32,10 @@ export const Sidebar: React.FC<Props> = ({ node, systemConfig, onClose }) => {
 			<div className="sidebar-body">
 				<div className="detail-row">
 					<span className="detail-label">ID</span>
-					<code className="detail-value">{data.id}</code>
+					<code className="detail-value">{node.id}</code>
 				</div>
 
-				{data.isInitial && (
+				{node.isInitial && (
 					<div className="detail-row">
 						<span className="detail-label">Role</span>
 						<span className="badge badge-initial">
@@ -59,7 +55,7 @@ export const Sidebar: React.FC<Props> = ({ node, systemConfig, onClose }) => {
 						</tr>
 					</thead>
 					<tbody>
-						{tasks.map((t, i) => (
+						{node.tasks.map((t, i) => (
 							<tr key={i}>
 								<td>
 									τ<sub>{i + 1}</sub>
@@ -107,13 +103,11 @@ export const Sidebar: React.FC<Props> = ({ node, systemConfig, onClose }) => {
 				<h4 className="section-title">Connectivity</h4>
 				<div className="detail-row">
 					<span className="detail-label">In-degree</span>
-					<code className="detail-value">{node.indegree(false)}</code>
+					<code className="detail-value">{node.indegree}</code>
 				</div>
 				<div className="detail-row">
 					<span className="detail-label">Out-degree</span>
-					<code className="detail-value">
-						{node.outdegree(false)}
-					</code>
+					<code className="detail-value">{node.outdegree}</code>
 				</div>
 			</div>
 		</aside>
