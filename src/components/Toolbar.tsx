@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
+import { Download, Maximize2, Save, ZoomIn, ZoomOut } from 'lucide-react';
 import type { LayoutName } from '../core/layoutConfig';
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
 	onZoomIn: () => void;
 	onZoomOut: () => void;
 	onExport: () => void;
+	onSave?: () => void;
 	onSearch: (q: string) => void;
 	stats: { nodes: number; edges: number } | null;
 }
@@ -28,6 +29,7 @@ export const Toolbar: React.FC<Props> = ({
 	onZoomIn,
 	onZoomOut,
 	onExport,
+	onSave,
 	onSearch,
 	stats
 }) => (
@@ -117,6 +119,18 @@ export const Toolbar: React.FC<Props> = ({
 				<Maximize2 size={15} strokeWidth={2} />
 			</button>
 		</div>
+
+		{onSave && (
+			<button
+				className="toolbar-action-btn"
+				type="button"
+				onClick={onSave}
+				title="Save graph as YAML"
+			>
+				<Save size={14} strokeWidth={2} />
+				Save YAML
+			</button>
+		)}
 
 		<button
 			className="toolbar-action-btn"

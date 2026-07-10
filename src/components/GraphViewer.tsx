@@ -1124,6 +1124,11 @@ function computeGroupConnectivity(
 }
 
 // ── Props / handle ────────────────────────────────────────────────────────────
+export interface NodeColorOverride {
+	fill?: string;
+	border?: string;
+}
+
 interface Props {
 	graphData: GraphFile | null;
 	layout: LayoutName;
@@ -1132,6 +1137,7 @@ interface Props {
 	enableAnimation: boolean;
 	onSelectionChange?: (selection: SelectionState | null) => void;
 	onStatsChange?: (stats: { nodes: number; edges: number }) => void;
+	colorOverrides?: Map<string, NodeColorOverride>;
 }
 
 export interface GraphViewerHandle {
@@ -1153,7 +1159,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			showNormalEdges,
 			enableAnimation,
 			onSelectionChange,
-			onStatsChange
+			onStatsChange,
+			colorOverrides
 		},
 		ref
 	) => {
@@ -1179,6 +1186,9 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 		const entranceLayoutRef = useRef<LayoutName | null>(null);
 		const onStatsChangeRef = useRef(onStatsChange);
 		onStatsChangeRef.current = onStatsChange;
+		// Always-current ref to colorOverrides for use inside D3 callbacks
+		const colorOverridesRef = useRef(colorOverrides);
+		colorOverridesRef.current = colorOverrides;
 
 		const [activeLayout, setActiveLayout] = useState<LayoutName>(layout);
 		useEffect(() => {
@@ -1250,15 +1260,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			g.selectAll<SVGGElement, NodePos>('.node-group')
 				.style('opacity', 1)
 				.classed('is-selected', false)
-				.classed('is-lasso-preview', false)
-				.each(function (d) {
-					const shape = d3.select(this).select('rect, circle');
-					if (shape.empty()) return;
-					shape
-						.attr('stroke', d.borderColor ?? '#1A1A1A')
-						.attr('stroke-width', d.isInitial ? 3 : 1.8)
-						.attr('stroke-dasharray', null);
-				});
+				.classed('is-lasso-preview', false);
 			g.selectAll<SVGPathElement, GraphEdge>('.edge-path')
 				.style('opacity', 1)
 				.attr('stroke', '#2C2C2C')
@@ -1286,26 +1288,11 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 						connectedEdgeIds.add(edgeId(e));
 					}
 				}
+				// Toggle selection class — CSS ring handles the visual indicator
 				g.selectAll<SVGGElement, NodePos>('.node-group')
 					.style('opacity', (d) => (connected.has(d.id) ? 1 : 0.1))
 					.classed('is-selected', (d) => ids.has(d.id))
-					.classed('is-lasso-preview', false)
-					.each(function (d) {
-						const group = d3.select(this);
-						const shape = group.select('rect, circle');
-						if (shape.empty()) return;
-						if (ids.has(d.id)) {
-							shape
-								.attr('stroke', SELECTION_STROKE)
-								.attr('stroke-width', 2.4)
-								.attr('stroke-dasharray', null);
-							return;
-						}
-						shape
-							.attr('stroke', d.borderColor ?? '#1A1A1A')
-							.attr('stroke-width', d.isInitial ? 3 : 1.8)
-							.attr('stroke-dasharray', null);
-					});
+					.classed('is-lasso-preview', false);
 				g.selectAll<SVGPathElement, GraphEdge>('.edge-path').style(
 					'opacity',
 					(d) => (connectedEdgeIds.has(edgeId(d)) ? 1 : 0.05)
@@ -1339,41 +1326,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				if (!gRef.current) return;
 				const g = d3.select(gRef.current);
 
-				const styleNodeShape = (
-					group: d3.Selection<
-						d3.BaseType,
-						NodePos,
-						d3.BaseType,
-						unknown
-					>,
-					d: NodePos,
-					mode: 'normal' | 'preview' | 'selected'
-				) => {
-					const shape = group.select('rect, circle');
-					if (shape.empty()) return;
-
-					if (mode === 'selected') {
-						shape
-							.attr('stroke', SELECTION_STROKE)
-							.attr('stroke-width', 2.4)
-							.attr('stroke-dasharray', null);
-						return;
-					}
-
-					if (mode === 'preview') {
-						shape
-							.attr('stroke', SELECTION_STROKE)
-							.attr('stroke-width', 2)
-							.attr('stroke-dasharray', '5 3');
-						return;
-					}
-
-					shape
-						.attr('stroke', d.borderColor ?? '#1A1A1A')
-						.attr('stroke-width', d.isInitial ? 3 : 1.8)
-						.attr('stroke-dasharray', null);
-				};
-
+				// CSS ring handles the visual indicator via is-selected /
+				// is-lasso-preview classes — no stroke manipulation needed
 				g.selectAll<SVGGElement, NodePos>('.node-group').each(function (
 					d
 				) {
@@ -1381,19 +1335,13 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 					const inPreview = hitIds.has(d.id);
 					const isSelected =
 						additive && selectedIdsRef.current.has(d.id);
-
 					group
 						.style('opacity', 1)
 						.classed('is-selected', isSelected)
-						.classed('is-lasso-preview', inPreview);
-
-					if (isSelected) {
-						styleNodeShape(group, d, 'selected');
-					} else if (inPreview) {
-						styleNodeShape(group, d, 'preview');
-					} else {
-						styleNodeShape(group, d, 'normal');
-					}
+						.classed(
+							'is-lasso-preview',
+							inPreview && !isSelected
+						);
 				});
 				g.selectAll<SVGPathElement, GraphEdge>('.edge-path').style(
 					'opacity',
@@ -1414,18 +1362,10 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 		const clearLassoPreview = useCallback(() => {
 			if (!gRef.current) return;
 			const g = d3.select(gRef.current);
-			g.selectAll<SVGGElement, NodePos>('.node-group').each(function (d) {
-				const group = d3.select(this);
-				group.classed('is-lasso-preview', false);
-				const selected = selectedIdsRef.current.has(d.id);
-				const shape = group.select('rect, circle');
-				if (!shape.empty() && !selected) {
-					shape
-						.attr('stroke', d.borderColor ?? '#1A1A1A')
-						.attr('stroke-width', d.isInitial ? 3 : 1.8)
-						.attr('stroke-dasharray', null);
-				}
-			});
+			g.selectAll<SVGGElement, NodePos>('.node-group').classed(
+				'is-lasso-preview',
+				false
+			);
 
 			const data = graphDataRef.current;
 			if (selectedIdsRef.current.size > 0 && data) {
@@ -2167,27 +2107,72 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				.attr('stroke-width', 1.8)
 				.attr('marker-end', 'url(#arrow-normal)');
 
+			// Selection rings — sit behind the main shape; CSS shows/hides
+			// them via .is-selected / .is-lasso-preview on the parent group
+			nodeGroups
+				.filter((d) => d.shape === 'circle')
+				.append('circle')
+				.attr('class', 'selection-ring')
+				.attr('r', (d) => d.radius + 4);
+
+			nodeGroups
+				.filter((d) => d.shape === 'rect')
+				.append('rect')
+				.attr('class', 'selection-ring')
+				.attr('x', (d) => -d.width / 2 - 4)
+				.attr('y', (d) => -d.height / 2 - 4)
+				.attr('width', (d) => d.width + 8)
+				.attr('height', (d) => d.height + 8)
+				.attr('rx', 9)
+				.attr('ry', 9);
+
 			// Circle shape
 			nodeGroups
 				.filter((d) => d.shape === 'circle')
 				.append('circle')
+				.attr('class', 'node-shape')
 				.attr('r', (d) => d.radius)
-				.attr('fill', (d) => d.fillColor ?? '#FFFFFF')
-				.attr('stroke', (d) => d.borderColor ?? '#1A1A1A')
+				.attr(
+					'fill',
+					(d) =>
+						colorOverridesRef.current?.get(d.id)?.fill ??
+						d.fillColor ??
+						'#FFFFFF'
+				)
+				.attr(
+					'stroke',
+					(d) =>
+						colorOverridesRef.current?.get(d.id)?.border ??
+						d.borderColor ??
+						'#1A1A1A'
+				)
 				.attr('stroke-width', (d) => (d.isInitial ? 3 : 1.8));
 
 			// Rect shape
 			nodeGroups
 				.filter((d) => d.shape === 'rect')
 				.append('rect')
+				.attr('class', 'node-shape')
 				.attr('x', (d) => -d.width / 2)
 				.attr('y', (d) => -d.height / 2)
 				.attr('width', (d) => d.width)
 				.attr('height', (d) => d.height)
 				.attr('rx', 6)
 				.attr('ry', 6)
-				.attr('fill', (d) => d.fillColor ?? '#FFFFFF')
-				.attr('stroke', (d) => d.borderColor ?? '#1A1A1A')
+				.attr(
+					'fill',
+					(d) =>
+						colorOverridesRef.current?.get(d.id)?.fill ??
+						d.fillColor ??
+						'#FFFFFF'
+				)
+				.attr(
+					'stroke',
+					(d) =>
+						colorOverridesRef.current?.get(d.id)?.border ??
+						d.borderColor ??
+						'#1A1A1A'
+				)
 				.attr('stroke-width', (d) => (d.isInitial ? 3 : 1.8));
 
 			// Labels
@@ -2357,6 +2342,26 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			fitView,
 			emitSelection
 		]);
+
+		// ── Apply color overrides without full redraw ────────────────────
+		useEffect(() => {
+			if (!gRef.current) return;
+			const g = d3.select(gRef.current);
+			g.selectAll<SVGGElement, NodePos>('.node-group').each(function (d) {
+				const override = colorOverrides?.get(d.id);
+				const effectiveFill =
+					override?.fill ?? d.fillColor ?? '#FFFFFF';
+				const effectiveBorder =
+					override?.border ?? d.borderColor ?? '#1A1A1A';
+
+				// Use .node-shape to avoid accidentally targeting the
+				// .selection-ring element which is also a rect/circle
+				const shape = d3.select(this).select<SVGElement>('.node-shape');
+				if (shape.empty()) return;
+
+				shape.attr('fill', effectiveFill).attr('stroke', effectiveBorder);
+			});
+		}, [colorOverrides]);
 
 		// ── Imperative handle ─────────────────────────────────────────────
 		useImperativeHandle(ref, () => ({

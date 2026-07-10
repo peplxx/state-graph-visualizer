@@ -69,3 +69,75 @@ export function parseYAML(content: string): GraphFile {
 export function parseFile(content: string): GraphFile {
 	return parseYAML(content);
 }
+
+// ── Serializer ────────────────────────────────────────────────────────────────
+
+/**
+ * Serialize a GraphFile back to YAML, merging optional color overrides into
+ * the node borderColor / fillColor fields.
+ */
+export function serializeToYAML(
+	graphFile: GraphFile,
+	colorOverrides?: Map<string, { fill?: string; border?: string }>
+): string {
+	// Reconstruct children / loopback edge lists per node
+	const childrenMap = new Map<string, string[]>();
+	const loopbackMap = new Map<string, string[]>();
+	for (const node of graphFile.nodes) {
+		childrenMap.set(node.id, []);
+		loopbackMap.set(node.id, []);
+	}
+	for (const edge of graphFile.edges) {
+		if (edge.type === 'normal') {
+			childrenMap.get(edge.source)?.push(edge.target);
+		} else {
+			loopbackMap.get(edge.source)?.push(edge.target);
+		}
+	}
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const out: Record<string, any> = {
+		schemaVersion: graphFile.schemaVersion ?? 1
+	};
+
+	if (graphFile.system) {
+		const sys = graphFile.system;
+		out.system = {
+			...(sys.description ? { description: sys.description } : {}),
+			...(sys.m !== undefined ? { m: sys.m } : {}),
+			tasks: sys.tasks.map((t) => ({
+				c: t.c,
+				d: t.d,
+				...(t.name ? { name: t.name } : {})
+			}))
+		};
+	}
+
+	out.nodes = graphFile.nodes.map((node) => {
+		const override = colorOverrides?.get(node.id);
+		const effectiveFill = override?.fill ?? node.fillColor;
+		const effectiveBorder = override?.border ?? node.borderColor;
+
+		return {
+			id: node.id,
+			...(node.isInitial ? { initial: true } : {}),
+			...(effectiveFill ? { fillColor: effectiveFill } : {}),
+			...(effectiveBorder ? { borderColor: effectiveBorder } : {}),
+			...(node.label ? { label: node.label } : {}),
+			tasks: node.tasks.map((t) => ({
+				c: t.task.c,
+				d: t.task.d,
+				...(t.release !== 'none' ? { release: t.release } : {})
+			})),
+			children: childrenMap.get(node.id) ?? [],
+			loopback: loopbackMap.get(node.id) ?? [],
+			...(node.metadata ? { metadata: node.metadata } : {})
+		};
+	});
+
+	if (graphFile.layout?.algorithm) {
+		out.layout = { algorithm: graphFile.layout.algorithm };
+	}
+
+	return yaml.dump(out, { indent: 2, lineWidth: -1, noRefs: true });
+}

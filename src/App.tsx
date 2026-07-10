@@ -1,13 +1,13 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import type { SelectionState } from './types/graph';
 import GraphViewer from './components/GraphViewer';
-import type { GraphViewerHandle } from './components/GraphViewer';
+import type { GraphViewerHandle, NodeColorOverride } from './components/GraphViewer';
 import { Toolbar } from './components/Toolbar';
 import { Sidebar } from './components/Sidebar';
 import { FileLoader } from './components/FileLoader';
 import { Legend } from './components/Legend';
-import { parseFile } from './core/parser';
+import { parseFile, serializeToYAML } from './core/parser';
 import type { GraphFile } from './types/graph';
 import type { LayoutName } from './core/layoutConfig';
 import { normalizeLayoutName } from './core/layoutConfig';
@@ -26,6 +26,34 @@ export default function App() {
 	);
 	const [error, setError] = useState<string | null>(null);
 	const [showLegend, setShowLegend] = useState(true);
+
+	// Color overrides: user-applied node colors on top of YAML data
+	const [colorOverrides, setColorOverrides] = useState<
+		Map<string, NodeColorOverride>
+	>(new Map());
+
+	const handleColorChange = useCallback(
+		(nodeIds: string[], fill?: string | null, border?: string | null) => {
+			setColorOverrides((prev) => {
+				const next = new Map(prev);
+				for (const id of nodeIds) {
+					const existing = { ...next.get(id) };
+					if (fill !== undefined) {
+						if (fill === null) delete existing.fill;
+						else existing.fill = fill;
+					}
+					if (border !== undefined) {
+						if (border === null) delete existing.border;
+						else existing.border = border;
+					}
+					if (Object.keys(existing).length === 0) next.delete(id);
+					else next.set(id, existing);
+				}
+				return next;
+			});
+		},
+		[]
+	);
 
 	// Sidebar state
 	const [sidebarTick, setSidebarTick] = useState(0);
@@ -46,6 +74,7 @@ export default function App() {
 	const handleLoad = useRef((graph: GraphFile, name: string) => {
 		setGraphData(graph);
 		setFilename(name);
+		setColorOverrides(new Map()); // reset overrides on new file
 		selectionRef.current = null;
 		setSidebarOpen(false);
 		setError(null);
@@ -140,6 +169,31 @@ export default function App() {
 											'graph') + '.svg';
 									a.click();
 								}}
+								onSave={
+									graphData
+										? () => {
+												const yaml = serializeToYAML(
+													graphData,
+													colorOverrides
+												);
+												const blob = new Blob([yaml], {
+													type: 'text/yaml'
+												});
+												const url =
+													URL.createObjectURL(blob);
+												const a =
+													document.createElement('a');
+												a.href = url;
+												a.download =
+													(filename.replace(
+														/\.\w+$/,
+														''
+													) || 'graph') + '.yaml';
+												a.click();
+												URL.revokeObjectURL(url);
+											}
+										: undefined
+								}
 								onSearch={(q) => {
 									if (q.trim())
 										viewerRef.current?.focusNode(q.trim());
@@ -156,6 +210,7 @@ export default function App() {
 								enableAnimation={enableAnimation}
 								onSelectionChange={onSelectionChangeRef.current}
 								onStatsChange={setStats}
+								colorOverrides={colorOverrides}
 							/>
 
 							<label className="reload-btn">
@@ -183,6 +238,8 @@ export default function App() {
 							selection={selectionRef.current}
 							systemConfig={graphData?.system}
 							onClose={() => setSidebarOpen(false)}
+							colorOverrides={colorOverrides}
+							onColorChange={handleColorChange}
 						/>
 					)}
 				</aside>

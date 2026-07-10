@@ -456,24 +456,25 @@ body,
 	stroke-dasharray: 5 4;
 }
 
-.node-group.is-selected rect,
-.node-group.is-selected circle {
-	stroke: #9b2e23 !important;
-	stroke-width: 2.4 !important;
+/* Selection ring — outer indicator that doesn't cover the node's own border */
+.selection-ring {
+	fill: none;
+	stroke: #9b2e23;
+	stroke-width: 2.5px;
+	pointer-events: none;
+	visibility: hidden;
 }
-
-.node-group.is-lasso-preview rect,
-.node-group.is-lasso-preview circle {
-	stroke: #9b2e23 !important;
-	stroke-width: 2px !important;
+.node-group.is-selected .selection-ring,
+.node-group.is-lasso-preview .selection-ring {
+	visibility: visible;
+}
+.node-group.is-lasso-preview .selection-ring {
 	stroke-dasharray: 5 3;
-	fill-opacity: 0.92;
+	stroke-width: 2px;
 }
-
-.node-group.is-selected.is-lasso-preview rect,
-.node-group.is-selected.is-lasso-preview circle {
+.node-group.is-selected.is-lasso-preview .selection-ring {
 	stroke-dasharray: none;
-	stroke-width: 2.4px !important;
+	stroke-width: 2.5px;
 }
 
 .badge-group {
@@ -810,4 +811,117 @@ body,
 	height: 100%;
 	pointer-events: none;
 	z-index: 5;
+}
+
+/* ── Appearance editor ─────────────────────────────────────────────────────── */
+.appearance-section {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.appearance-row {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.appearance-row-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.appearance-row-label {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.07em;
+	color: var(--text-muted);
+}
+
+.appearance-current {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.appearance-swatch-preview {
+	width: 18px;
+	height: 18px;
+	border-radius: 4px;
+	border: 1.5px solid var(--border);
+	flex-shrink: 0;
+	box-shadow: var(--shadow-control);
+}
+
+.appearance-hex {
+	font-family: var(--font-mono);
+	font-size: 10px;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.appearance-reset-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	padding: 1px 6px;
+	font-size: 10px;
+	font-weight: 500;
+	font-family: var(--font-ui);
+	color: var(--text-muted);
+	background: none;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	cursor: pointer;
+	transition: color 0.12s, background 0.12s, border-color 0.12s;
+	white-space: nowrap;
+}
+.appearance-reset-btn:hover {
+	color: var(--text);
+	background: var(--toolbar-control-hover);
+	border-color: var(--border);
+}
+.appearance-reset-btn:disabled {
+	opacity: 0.35;
+	cursor: default;
+	pointer-events: none;
+}
+
+.color-palette {
+	display: grid;
+	grid-template-columns: repeat(6, 1fr);
+	gap: 4px;
+}
+
+.color-swatch {
+	aspect-ratio: 1;
+	border-radius: 4px;
+	border: 1.5px solid rgba(26, 26, 26, 0.12);
+	cursor: pointer;
+	transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s ease;
+	position: relative;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.color-swatch:hover {
+	transform: scale(1.15);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+	border-color: rgba(26, 26, 26, 0.3);
+	z-index: 1;
+}
+.color-swatch.is-active {
+	border-color: var(--text);
+	border-width: 2px;
+	box-shadow: 0 0 0 2px rgba(26, 26, 26, 0.15), 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.color-swatch.is-active:hover {
+	transform: scale(1.1);
+}
+
+.appearance-divider {
+	height: 1px;
+	background: var(--border);
+	margin: 2px 0;
 }
