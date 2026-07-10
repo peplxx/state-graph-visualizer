@@ -85,6 +85,247 @@ function computeBFSDepths(
 	return depth;
 }
 
+const ENTRANCE_LAYER_STEP_MS = 130;
+const ENTRANCE_LAYER_JITTER_MS = 170;
+const ENTRANCE_DURATION_MS = 420;
+const ENTRANCE_EDGE_LAG_MS = 90;
+const ENTRANCE_EDGE_JITTER_MS = 110;
+
+function prefersReducedMotion(): boolean {
+	return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function buildNodeEntranceDelays(
+	depths: Map<string, number>
+): Map<string, number> {
+	const byLayer = new Map<number, string[]>();
+
+	for (const [id, depth] of depths) {
+		const layer = byLayer.get(depth);
+		if (layer) layer.push(id);
+		else byLayer.set(depth, [id]);
+	}
+
+	const delays = new Map<string, number>();
+	for (const [depth, ids] of byLayer) {
+		for (const id of ids) {
+			delays.set(
+				id,
+				depth * ENTRANCE_LAYER_STEP_MS +
+					Math.random() * ENTRANCE_LAYER_JITTER_MS
+			);
+		}
+	}
+
+	return delays;
+}
+
+function buildEdgeEntranceDelays(
+	edges: Iterable<GraphEdge>,
+	nodeDelays: Map<string, number>
+): Map<string, number> {
+	const delays = new Map<string, number>();
+	for (const edge of edges) {
+		const id = edgeId(edge);
+		const base = nodeDelays.get(edge.target) ?? 0;
+		delays.set(
+			id,
+			base +
+				ENTRANCE_EDGE_LAG_MS +
+				Math.random() * ENTRANCE_EDGE_JITTER_MS
+		);
+	}
+	return delays;
+}
+
+function buildLoopEdgeEntranceDelays(
+	edges: Iterable<GraphEdge>,
+	nodeDelays: Map<string, number>
+): Map<string, number> {
+	const delays = new Map<string, number>();
+	for (const edge of edges) {
+		const id = edgeId(edge);
+		const nodeShownAt =
+			(nodeDelays.get(edge.source) ?? 0) + ENTRANCE_DURATION_MS;
+		delays.set(
+			id,
+			nodeShownAt +
+				ENTRANCE_EDGE_LAG_MS +
+				Math.random() * ENTRANCE_EDGE_JITTER_MS
+		);
+	}
+	return delays;
+}
+
+function buildBundleTrunkEntranceDelays(
+	bundles: LoopBundle[],
+	nodeDelays: Map<string, number>
+): Map<string, number> {
+	const delays = new Map<string, number>();
+	for (const bundle of bundles) {
+		let latestBranchEnd = 0;
+		for (const edge of bundle.edges) {
+			const branchStart =
+				(nodeDelays.get(edge.source) ?? 0) +
+				ENTRANCE_DURATION_MS +
+				ENTRANCE_EDGE_LAG_MS;
+			latestBranchEnd = Math.max(
+				latestBranchEnd,
+				branchStart + ENTRANCE_DURATION_MS
+			);
+		}
+		delays.set(
+			bundle.id,
+			latestBranchEnd +
+				ENTRANCE_EDGE_LAG_MS +
+				Math.random() * ENTRANCE_EDGE_JITTER_MS
+		);
+	}
+	return delays;
+}
+
+function animateNodeEntrance(
+	nodeGroups: d3.Selection<SVGGElement, NodePos, SVGGElement, unknown>,
+	delays: Map<string, number>
+) {
+	if (prefersReducedMotion()) {
+		nodeGroups.style('opacity', 1);
+		return;
+	}
+
+	nodeGroups.interrupt('node-entrance');
+	nodeGroups
+		.style('opacity', 0)
+		.transition('node-entrance')
+		.delay((d) => delays.get(d.id) ?? 0)
+		.duration(ENTRANCE_DURATION_MS)
+		.ease(d3.easeCubicOut)
+		.style('opacity', 1);
+}
+
+function animateStrokeDrawEntrance<T>(
+	paths: d3.Selection<SVGPathElement, T, SVGGElement, unknown>,
+	delays: Map<string, number>,
+	idOf: (datum: T) => string,
+	finishedDasharray?: string | null
+) {
+	if (paths.empty()) return;
+
+	if (prefersReducedMotion()) {
+		paths.attr('opacity', 1);
+		if (finishedDasharray !== undefined) {
+			paths
+				.attr('stroke-dasharray', finishedDasharray)
+				.attr('stroke-dashoffset', null);
+		}
+		return;
+	}
+
+	paths.interrupt('edge-entrance');
+	paths.each(function () {
+		const length = (this as SVGPathElement).getTotalLength();
+		const path = d3.select(this);
+		const markerEnd = path.attr('marker-end');
+		if (markerEnd) {
+			path.attr('data-marker-end', markerEnd).attr('marker-end', null);
+		}
+		path
+			.attr('opacity', 1)
+			.attr('stroke-dasharray', `${length} ${length}`)
+			.attr('stroke-dashoffset', length);
+	});
+
+	paths
+		.transition('edge-entrance')
+		.delay((d) => delays.get(idOf(d)) ?? 0)
+		.duration(ENTRANCE_DURATION_MS)
+		.ease(d3.easeQuadOut)
+		.attr('stroke-dashoffset', 0)
+		.on('end', function () {
+			const path = d3.select(this);
+			const markerEnd = path.attr('data-marker-end');
+			path
+				.attr('stroke-dasharray', finishedDasharray ?? null)
+				.attr('stroke-dashoffset', null);
+			if (markerEnd) {
+				path.attr('marker-end', markerEnd).attr('data-marker-end', null);
+			}
+		});
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const EXPORT_FONT_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+text, tspan {
+	font-family: 'JetBrains Mono', 'Fira Mono', ui-monospace, monospace;
+}
+`;
+
+function prepareExportSvg(svg: SVGSVGElement): SVGSVGElement {
+	const w = svg.clientWidth;
+	const h = svg.clientHeight;
+	const clone = svg.cloneNode(true) as SVGSVGElement;
+
+	clone.setAttribute('xmlns', SVG_NS);
+	clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+	clone.setAttribute('width', String(w));
+	clone.setAttribute('height', String(h));
+	clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
+	clone.removeAttribute('class');
+	clone.style.removeProperty('width');
+	clone.style.removeProperty('height');
+
+	let defs = clone.querySelector('defs');
+	if (!defs) {
+		defs = document.createElementNS(SVG_NS, 'defs');
+		clone.insertBefore(defs, clone.firstChild);
+	}
+	const style = document.createElementNS(SVG_NS, 'style');
+	style.setAttribute('type', 'text/css');
+	style.textContent = EXPORT_FONT_CSS;
+	defs.insertBefore(style, defs.firstChild);
+
+	clone.querySelectorAll('.node-group').forEach((node) => {
+		node.setAttribute('opacity', '1');
+		(node as SVGGElement).style.opacity = '1';
+		const transform = node.getAttribute('transform');
+		if (transform) {
+			const match = transform.match(/translate\(([-\d.]+),([-\d.]+)\)/);
+			if (match) {
+				node.setAttribute(
+					'transform',
+					`translate(${match[1]},${match[2]})`
+				);
+			}
+		}
+		node.classList.remove('is-lasso-preview');
+	});
+
+	clone.querySelectorAll('path').forEach((path) => {
+		path.setAttribute('opacity', '1');
+		path.removeAttribute('stroke-dasharray');
+		path.removeAttribute('stroke-dashoffset');
+	});
+
+	clone.querySelectorAll('text, tspan').forEach((el) => {
+		const fontSize = el.getAttribute('font-size');
+		if (fontSize?.endsWith('px')) {
+			el.setAttribute('font-size', fontSize.slice(0, -2));
+		}
+		if (el.tagName === 'text' && !el.getAttribute('fill')) {
+			el.setAttribute('fill', '#1A1A1A');
+		}
+	});
+
+	return clone;
+}
+
+function svgToDataUrl(svg: SVGSVGElement): string {
+	const prepared = prepareExportSvg(svg);
+	const svgStr = new XMLSerializer().serializeToString(prepared);
+	return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`;
+}
+
 /** BFS path from initial node to target; returns {nodes, edgeIds} */
 function findRootPath(
 	targetId: string,
@@ -287,6 +528,8 @@ function computeRadialPositions(
 }
 
 // ── Tree layout: Reingold-Tilford via d3.tree ─────────────────────────────────
+const TREE_LEVEL_GAP = 130;
+const TREE_Y_OFFSET = 130;
 function buildSpanningTree(nodes: GraphNode[], edges: GraphEdge[]): D3SpanNode {
 	const adj = new Map<string, string[]>();
 	for (const n of nodes) adj.set(n.id, []);
@@ -331,28 +574,36 @@ function computeTreePositions(
 	nodes: GraphNode[],
 	edges: GraphEdge[],
 	nodeWidth: number
-): Map<string, { x: number; y: number }> {
+): {
+	positions: Map<string, { x: number; y: number }>;
+	levelYs: number[];
+} {
 	const spanTree = buildSpanningTree(nodes, edges);
 	const hierarchy = d3.hierarchy<D3SpanNode>(spanTree, (d) => d.children);
 
 	const treeLayout = d3
 		.tree<D3SpanNode>()
-		.nodeSize([nodeWidth + 24, 130])
+		.nodeSize([nodeWidth + 24, TREE_LEVEL_GAP])
 		.separation((a, b) => (a.parent === b.parent ? 1 : 1.4));
 
 	treeLayout(hierarchy);
 
 	const positions = new Map<string, { x: number; y: number }>();
+	const levelYs = new Set<number>();
 	for (const node of hierarchy.descendants()) {
 		if (node.data.id === '__root__') continue;
-		const yOff = 130;
+		const y = ((node as any).y as number) + TREE_Y_OFFSET;
 		positions.set(node.data.id, {
 			x: (node as any).x as number,
-			y: ((node as any).y as number) + yOff
+			y
 		});
+		levelYs.add(y);
 	}
 
-	return positions;
+	return {
+		positions,
+		levelYs: [...levelYs].sort((a, b) => a - b)
+	};
 }
 
 // ── Node geometry ─────────────────────────────────────────────────────────────
@@ -878,6 +1129,7 @@ interface Props {
 	layout: LayoutName;
 	showLoopbacks: boolean;
 	showNormalEdges: boolean;
+	enableAnimation: boolean;
 	onSelectionChange?: (selection: SelectionState | null) => void;
 	onStatsChange?: (stats: { nodes: number; edges: number }) => void;
 }
@@ -899,6 +1151,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			layout,
 			showLoopbacks,
 			showNormalEdges,
+			enableAnimation,
 			onSelectionChange,
 			onStatsChange
 		},
@@ -922,6 +1175,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 		const shiftKeyRef = useRef(false);
 		const suppressClickRef = useRef(false);
 		const lassoActiveRef = useRef(false);
+		const entranceGraphRef = useRef<GraphFile | null>(null);
+		const entranceLayoutRef = useRef<LayoutName | null>(null);
 		const onStatsChangeRef = useRef(onStatsChange);
 		onStatsChangeRef.current = onStatsChange;
 
@@ -1633,6 +1888,18 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 
 			const isRadial = activeLayout === 'radial';
 
+			const shouldAnimateEntrance =
+				enableAnimation &&
+				(entranceGraphRef.current !== graphData ||
+					entranceLayoutRef.current !== activeLayout);
+			entranceGraphRef.current = graphData;
+			entranceLayoutRef.current = activeLayout;
+			const entranceDelays = shouldAnimateEntrance
+				? buildNodeEntranceDelays(
+						computeBFSDepths(graphData.nodes, graphData.edges)
+					)
+				: null;
+
 			const sampleSize =
 				graphData.nodes.length > 0
 					? estimateNodeSize(graphData.nodes[0].tasks)
@@ -1640,6 +1907,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 
 			let positions: Map<string, { x: number; y: number }>;
 			let ringRadii: number[] = [];
+			let treeLevelYs: number[] = [];
 
 			if (isRadial) {
 				const result = computeRadialPositions(
@@ -1649,11 +1917,13 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				positions = result.positions;
 				ringRadii = result.ringRadii;
 			} else {
-				positions = computeTreePositions(
+				const result = computeTreePositions(
 					graphData.nodes,
 					graphData.edges,
 					sampleSize.width
 				);
+				positions = result.positions;
+				treeLevelYs = result.levelYs;
 			}
 
 			// ── Node map
@@ -1721,7 +1991,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			const colorForTarget = (targetId: string) =>
 				loopbackColor(loopIncoming.get(targetId) ?? 1, maxLoopIncoming);
 
-			// ── Concentric rings (radial only) ─────────────────────────────
+			// ── Depth guides (radial rings / tree levels) ─────────────────
 			const ringsLayer = g.select('.rings-layer');
 			ringsLayer.selectAll('*').remove();
 
@@ -1745,6 +2015,45 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 						.attr('pointer-events', 'none')
 						.text(`L${i + 1}`);
 				});
+			} else if (treeLevelYs.length > 0) {
+				let minX = Infinity;
+				let maxX = -Infinity;
+				for (const node of nodeMap.values()) {
+					minX = Math.min(minX, node.x - node.width / 2);
+					maxX = Math.max(maxX, node.x + node.width / 2);
+				}
+				const padX = 48;
+				minX -= padX;
+				maxX += padX;
+
+				treeLevelYs.forEach((y, i) => {
+					ringsLayer
+						.append('line')
+						.attr('x1', minX)
+						.attr('y1', y)
+						.attr('x2', maxX)
+						.attr('y2', y)
+						.attr('stroke', '#BBBBBB')
+						.attr('stroke-width', 0.6)
+						.attr('stroke-dasharray', '5,5');
+
+					const label = `L${i + 1}`;
+					for (const [x, anchor] of [
+						[minX - 8, 'end'],
+						[maxX + 8, 'start']
+					] as const) {
+						ringsLayer
+							.append('text')
+							.attr('x', x)
+							.attr('y', y + 4)
+							.attr('text-anchor', anchor)
+							.attr('font-size', '10px')
+							.attr('fill', '#AAAAAA')
+							.attr('font-family', 'Inter, sans-serif')
+							.attr('pointer-events', 'none')
+							.text(label);
+					}
+				});
 			}
 
 			// ── Loopback arcs ──────────────────────────────────────────────
@@ -1761,7 +2070,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			}
 
 			// One shared arrow-bearing trunk per bundle.
-			loopbackLayer
+			const arcTrunkPaths = loopbackLayer
 				.selectAll<SVGPathElement, LoopBundle>('path.arc-trunk')
 				.data(loopBundles, (bundle) => bundle.id)
 				.join('path')
@@ -1781,7 +2090,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 
 			// Individual branches converge on the shared collector. Only
 			// unbundled edges keep their own arrowhead.
-			loopbackLayer
+			const arcBranchPaths = loopbackLayer
 				.selectAll<SVGPathElement, GraphEdge>('path.arc-path')
 				.data(loopEdges, edgeId)
 				.join('path')
@@ -1811,7 +2120,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			edgesLayer.style('display', showNormalEdges ? null : 'none');
 			edgesLayer.selectAll('*').remove();
 
-			edgesLayer
+			const normalEdgePaths = edgesLayer
 				.selectAll<SVGPathElement, GraphEdge>('path.edge-path')
 				.data(normalEdges, (d) => d.id ?? `${d.source}--${d.target}`)
 				.join('path')
@@ -1910,6 +2219,57 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				});
 			});
 
+			if (shouldAnimateEntrance && entranceDelays) {
+				fitView(false);
+
+				animateNodeEntrance(nodeGroups, entranceDelays);
+
+				const edgeDelays = buildEdgeEntranceDelays(
+					normalEdges,
+					entranceDelays
+				);
+				const loopDelays = buildLoopEdgeEntranceDelays(
+					loopEdges,
+					entranceDelays
+				);
+				const bundleDelays = buildBundleTrunkEntranceDelays(
+					loopBundles,
+					entranceDelays
+				);
+
+				animateStrokeDrawEntrance(
+					normalEdgePaths,
+					edgeDelays,
+					(edge) => edgeId(edge)
+				);
+				animateStrokeDrawEntrance(
+					arcBranchPaths,
+					loopDelays,
+					(edge) => edgeId(edge),
+					'7,6'
+				);
+				animateStrokeDrawEntrance(
+					arcTrunkPaths,
+					bundleDelays,
+					(bundle) => bundle.id,
+					'7,6'
+				);
+			} else {
+				nodeGroups.interrupt('node-entrance');
+				nodeGroups.style('opacity', 1);
+				normalEdgePaths.interrupt('edge-entrance').attr('opacity', 1);
+				arcTrunkPaths
+					.interrupt('edge-entrance')
+					.attr('opacity', 1)
+					.attr('stroke-dasharray', '7,6')
+					.attr('stroke-dashoffset', null);
+				arcBranchPaths
+					.interrupt('edge-entrance')
+					.attr('opacity', 1)
+					.attr('stroke-dasharray', '7,6')
+					.attr('stroke-dashoffset', null);
+			}
+
 			// ── Events ────────────────────────────────────────────────────
 			nodeGroups.on('mouseenter', function (_evt, d) {
 				if (!svgRef.current) return;
@@ -1981,12 +2341,15 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				nodes: graphData.nodes.length,
 				edges: graphData.edges.length
 			});
-			requestAnimationFrame(() => fitView(true));
+			if (!shouldAnimateEntrance) {
+				fitView(false);
+			}
 		}, [
 			graphData,
 			activeLayout,
 			showLoopbacks,
 			showNormalEdges,
+			enableAnimation,
 			clearSelection,
 			applySelection,
 			applyHoverPath,
@@ -2024,10 +2387,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			exportPNG() {
 				const svg = svgRef.current;
 				if (!svg) return '';
-				const clone = svg.cloneNode(true) as SVGSVGElement;
-				clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-				const svgStr = new XMLSerializer().serializeToString(clone);
-				return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgStr)))}`;
+				return svgToDataUrl(svg);
 			},
 
 			focusNode(id: string) {

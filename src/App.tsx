@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { Sparkles } from 'lucide-react';
 import type { SelectionState } from './types/graph';
 import GraphViewer from './components/GraphViewer';
 import type { GraphViewerHandle } from './components/GraphViewer';
@@ -19,6 +20,7 @@ export default function App() {
 	const [layout, setLayout] = useState<LayoutName>('radial');
 	const [showLoopbacks, setShowLoopbacks] = useState(true);
 	const [showNormalEdges, setShowNormalEdges] = useState(true);
+	const [enableAnimation, setEnableAnimation] = useState(true);
 	const [stats, setStats] = useState<{ nodes: number; edges: number } | null>(
 		null
 	);
@@ -77,12 +79,25 @@ export default function App() {
 						<span className="filename-badge">{filename}</span>
 					)}
 				</div>
-				<button
-					className="legend-toggle"
-					onClick={() => setShowLegend((v) => !v)}
-				>
-					{showLegend ? 'Hide' : 'Show'} Legend
-				</button>
+				<div className="header-actions">
+					<button
+						className={`header-toggle${enableAnimation ? ' is-active' : ''}`}
+						type="button"
+						aria-pressed={enableAnimation}
+						onClick={() => setEnableAnimation((v) => !v)}
+						title="Enable or disable entrance animation"
+					>
+						<Sparkles size={14} strokeWidth={2} aria-hidden="true" />
+						Animation
+					</button>
+					<button
+						className="header-toggle"
+						type="button"
+						onClick={() => setShowLegend((v) => !v)}
+					>
+						{showLegend ? 'Hide' : 'Show'} Legend
+					</button>
+				</div>
 			</header>
 
 			{/* ── Error banner ── */}
@@ -138,6 +153,7 @@ export default function App() {
 								layout={layout}
 								showLoopbacks={showLoopbacks}
 								showNormalEdges={showNormalEdges}
+								enableAnimation={enableAnimation}
 								onSelectionChange={onSelectionChangeRef.current}
 								onStatsChange={setStats}
 							/>

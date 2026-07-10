@@ -1,4 +1,5 @@
 import React from 'react';
+import { Download, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import type { LayoutName } from '../core/layoutConfig';
 
 interface Props {
@@ -31,61 +32,104 @@ export const Toolbar: React.FC<Props> = ({
 	stats
 }) => (
 	<div className="toolbar">
-		<input
-			className="search-input"
-			type="text"
-			placeholder="Find node by ID…"
-			onChange={(e) => onSearch(e.target.value)}
-		/>
-		<label className="layout-control">
-			<span>Layout</span>
-			<select
-				className="layout-select"
-				value={layout}
-				onChange={(e) => onLayoutChange(e.target.value as LayoutName)}
-				title="Layout algorithm"
-			>
-				<option value="radial">Radial</option>
-				<option value="tree">Tree</option>
-			</select>
-		</label>
-		<button
-			className={`edge-toggle${showNormalEdges ? ' active' : ''}`}
-			type="button"
-			aria-pressed={showNormalEdges}
-			onClick={() => onShowNormalEdgesChange(!showNormalEdges)}
-			title="Show or hide state transitions"
-		>
-			<span className="edge-toggle-icon">→</span>
-			Transitions
-		</button>
-		<button
-			className={`edge-toggle${showLoopbacks ? ' active' : ''}`}
-			type="button"
-			aria-pressed={showLoopbacks}
-			onClick={() => onShowLoopbacksChange(!showLoopbacks)}
-			title="Show or hide return transitions"
-		>
-			<span className="edge-toggle-icon">↩</span>
-			Returns
-		</button>
-		<div className="tb-sep" />
+		<div className="toolbar-section">
+			<input
+				className="toolbar-search"
+				type="search"
+				placeholder="Find node by ID…"
+				onChange={(e) => onSearch(e.target.value)}
+			/>
+		</div>
 
-		<button className="tb-btn" onClick={onZoomIn} title="Zoom in">
-			＋
-		</button>
-		<button className="tb-btn" onClick={onZoomOut} title="Zoom out">
-			－
-		</button>
-		<button className="tb-btn" onClick={onFit} title="Fit all">
-			⤢
-		</button>
-		<button className="tb-btn" onClick={onExport} title="Export PNG">
-			PNG
+		<div className="toolbar-section">
+			<label className="toolbar-field">
+				<span className="toolbar-field-label">Layout</span>
+				<select
+					className="toolbar-select"
+					value={layout}
+					onChange={(e) =>
+						onLayoutChange(e.target.value as LayoutName)
+					}
+					title="Layout algorithm"
+				>
+					<option value="radial">Radial</option>
+					<option value="tree">Tree</option>
+				</select>
+			</label>
+		</div>
+
+		<div className="toolbar-section toolbar-section--toggles">
+			<button
+				className={`toolbar-toggle${showNormalEdges ? ' is-active' : ''}`}
+				type="button"
+				aria-pressed={showNormalEdges}
+				onClick={() => onShowNormalEdgesChange(!showNormalEdges)}
+				title="Show or hide state transitions"
+			>
+				<span className="toolbar-toggle-icon" aria-hidden="true">
+					→
+				</span>
+				Transitions
+			</button>
+			<button
+				className={`toolbar-toggle${showLoopbacks ? ' is-active' : ''}`}
+				type="button"
+				aria-pressed={showLoopbacks}
+				onClick={() => onShowLoopbacksChange(!showLoopbacks)}
+				title="Show or hide return transitions"
+			>
+				<span className="toolbar-toggle-icon" aria-hidden="true">
+					↩
+				</span>
+				Returns
+			</button>
+		</div>
+
+		<div className="toolbar-divider" aria-hidden="true" />
+
+		<div
+			className="toolbar-btn-group"
+			role="group"
+			aria-label="Zoom controls"
+		>
+			<button
+				className="toolbar-icon-btn"
+				type="button"
+				onClick={onZoomIn}
+				title="Zoom in"
+			>
+				<ZoomIn size={15} strokeWidth={2} />
+			</button>
+			<button
+				className="toolbar-icon-btn"
+				type="button"
+				onClick={onZoomOut}
+				title="Zoom out"
+			>
+				<ZoomOut size={15} strokeWidth={2} />
+			</button>
+			<button
+				className="toolbar-icon-btn"
+				type="button"
+				onClick={onFit}
+				title="Fit all"
+			>
+				<Maximize2 size={15} strokeWidth={2} />
+			</button>
+		</div>
+
+		<button
+			className="toolbar-action-btn"
+			type="button"
+			onClick={onExport}
+			title="Export SVG"
+		>
+			<Download size={14} strokeWidth={2} />
+			Export
 		</button>
 
 		{stats && (
-			<span className="tb-stats">
+			<span className="toolbar-stats">
 				{stats.nodes.toLocaleString()} nodes ·{' '}
 				{stats.edges.toLocaleString()} edges
 			</span>

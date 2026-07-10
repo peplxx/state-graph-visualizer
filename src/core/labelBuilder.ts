@@ -3,15 +3,14 @@ import type { NodeTaskDisplay } from '../types/graph';
 // Produces the multi-line label rendered inside the node box
 // Format per row: (c,d)↑  or  (c,d)↓  or  (c,d)
 export function buildNodeLabel(tasks: NodeTaskDisplay[]): string {
-	const invisibleSpace = '\u2800';
-	return tasks
-		.map(({ task, release }) => {
-			const base = `(${task.c},${task.d})`;
-			if (release === 'up') return `${base}↑`;
-			if (release === 'down') return `${base}↓`;
-			return `${base}${invisibleSpace}`;
-		})
-		.join('\n');
+	const rows = tasks.map(({ task, release }) => {
+		const base = `(${task.c},${task.d})`;
+		if (release === 'up') return `${base}↑`;
+		if (release === 'down') return `${base}↓`;
+		return base;
+	});
+	const maxLen = Math.max(...rows.map((row) => row.length), 4);
+	return rows.map((row) => row.padEnd(maxLen)).join('\n');
 }
 
 // Estimate node dimensions based on task count and value widths
