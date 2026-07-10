@@ -1,6 +1,8 @@
 import React from 'react';
-import type { SelectionState, GraphArea, LabelPosition } from '../types/graph';
-import { X, ArrowUp, ArrowDown, Minus, RotateCcw, MousePointer2, Layers, Trash2 } from 'lucide-react';
+import type { SelectionState, GraphArea, LabelPosition, GraphNode, GraphEdge } from '../types/graph';
+import { X, ArrowUp, ArrowDown, Minus, RotateCcw, MousePointer2, Layers, Trash2, Timer, Download } from 'lucide-react';
+import { SchedulingDiagram } from './SchedulingDiagram';
+import { findPathToNode } from '../utils/pathFinder';
 
 // ── Color palettes ────────────────────────────────────────────────────────────
 
@@ -58,6 +60,7 @@ interface Props {
 		tasks: Array<{ c: number; d: number; name?: string }>;
 		m?: number;
 	};
+	graphData?: { nodes: GraphNode[]; edges: GraphEdge[] };
 	colorOverrides?: Map<string, ColorOverride>;
 	onColorChange?: (
 		nodeIds: string[],
@@ -272,6 +275,7 @@ const LabelPositionPicker: React.FC<{
 export const Sidebar: React.FC<Props> = ({
 	selection,
 	systemConfig,
+	graphData,
 	onClose,
 	colorOverrides,
 	onColorChange,
@@ -287,9 +291,40 @@ export const Sidebar: React.FC<Props> = ({
 	onAreaLabelChange,
 	onDeleteArea,
 }) => {
-	// Hook must be at top level (before any early returns).
+	// All hooks must be at top level (before any early returns).
 	// Sidebar is keyed by area id in App.tsx so this reinitializes on area change.
 	const [labelDraft, setLabelDraft] = React.useState(selectedArea?.label ?? '');
+	const [showDeadlines, setShowDeadlines] = React.useState(false);
+
+	// Derive node/group before early returns so hooks below are unconditional.
+	const _selNodes = selection?.nodes ?? [];
+	const _node = _selNodes.length === 1 ? _selNodes[0] : null;
+
+	const nodePath = React.useMemo(() => {
+		if (!graphData || !_node) return null;
+		return findPathToNode(graphData.nodes, graphData.edges, _node.id);
+	}, [graphData, _node?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	// SVG ref for export
+	const svgRef = React.useRef<SVGSVGElement>(null);
+
+	const handleExportDiagram = React.useCallback(() => {
+		const svg = svgRef.current;
+		if (!svg) return;
+		const serializer = new XMLSerializer();
+		let str = serializer.serializeToString(svg);
+		// Resolve CSS custom properties so the file renders outside the browser
+		str = str
+			.replace(/var\(--font-ui\)/g, '"Inter", system-ui, sans-serif')
+			.replace(/var\(--font-mono\)/g, '"JetBrains Mono", "Fira Mono", monospace');
+		const blob = new Blob([str], { type: 'image/svg+xml' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `schedule-${_node?.id ?? 'diagram'}.svg`;
+		a.click();
+		URL.revokeObjectURL(url);
+	}, [_node?.id]);
 
 	// ── Area panel ──────────────────────────────────────────────────────
 	if (selectedArea) {
@@ -557,6 +592,56 @@ export const Sidebar: React.FC<Props> = ({
 								))}
 							</tbody>
 						</table>
+
+						{/* ── Scheduling diagram ──────────────────────── */}
+						{systemConfig && nodePath && (
+							<>
+								<div className="sched-section-header">
+									<h4 className="section-title" style={{ margin: 0 }}>
+										Schedule
+									</h4>
+									<div style={{ display: 'flex', gap: 4 }}>
+										<button
+											className={`sched-toggle-btn${showDeadlines ? ' is-active' : ''}`}
+											type="button"
+											onClick={() => setShowDeadlines((v) => !v)}
+											title={showDeadlines ? 'Hide deadlines' : 'Show deadlines'}
+										>
+											<Timer size={11} />
+											Deadlines
+										</button>
+										{nodePath.length >= 2 && (
+											<button
+												className="sched-toggle-btn"
+												type="button"
+												onClick={handleExportDiagram}
+												title="Export diagram as SVG"
+											>
+												<Download size={11} />
+												SVG
+											</button>
+										)}
+									</div>
+								</div>
+								{nodePath.length < 2 ? (
+									<p className="sched-no-path">
+										{nodePath.length === 0
+											? 'No path from initial state to this node'
+											: 'Initial state — no execution history'}
+									</p>
+								) : (
+									<SchedulingDiagram
+										ref={svgRef}
+										path={nodePath}
+										systemConfig={systemConfig}
+										showDeadlines={showDeadlines}
+									/>
+								)}
+							</>
+						)}
+						{!nodePath && graphData && systemConfig && (
+							<p className="sched-no-path">No path from initial state</p>
+						)}
 
 						{systemConfig && (
 							<>

@@ -2963,6 +2963,14 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 						effectiveHatch,
 						darkenColor(effectiveBorder, 0.35)
 					);
+					// buildAreaHatchOverlay replaces the DOM element, so the
+					// display:none set by the visibility effect is lost.
+					// Re-apply hidden state from the current ref value.
+					if (hiddenAreaIdsRef.current?.has(areaId)) {
+						hatchLayer
+							.select(`.area-hatch[data-area-id="${areaId}"]`)
+							.style('display', 'none');
+					}
 				} else if (defsRef.current) {
 					removeAreaHatchOverlay(hatchLayer, defsRef.current, areaId);
 				}

@@ -465,6 +465,7 @@ export default function App() {
 							key={selectedArea ? `area-${selectedArea.id}` : `node-${sidebarTick}`}
 							selection={selectionRef.current ?? undefined}
 							systemConfig={graphData?.system}
+							graphData={graphData ?? undefined}
 							onClose={() => {
 								setSidebarOpen(false);
 								setSelectedArea(null);
