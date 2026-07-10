@@ -287,8 +287,16 @@ function prepareExportSvg(svg: SVGSVGElement): SVGSVGElement {
 	defs.insertBefore(style, defs.firstChild);
 
 	clone.querySelectorAll('.node-group').forEach((node) => {
-		node.setAttribute('opacity', '1');
-		(node as SVGGElement).style.opacity = '1';
+		// Preserve the inline opacity set by D3 (selection dimming is 0.1,
+		// normal is 1). Only force 1 if the value is falsy / stuck at 0 from
+		// a mid-animation state (entrance animation completes before export in
+		// practice, but guard against it anyway).
+		const inlineOpacity = (node as SVGGElement).style.opacity;
+		const opacityNum = inlineOpacity ? parseFloat(inlineOpacity) : 1;
+		const exportOpacity = opacityNum > 0 ? opacityNum : 1;
+		node.removeAttribute('opacity');
+		(node as SVGGElement).style.opacity = String(exportOpacity);
+
 		const transform = node.getAttribute('transform');
 		if (transform) {
 			const match = transform.match(/translate\(([-\d.]+),([-\d.]+)\)/);
@@ -300,11 +308,39 @@ function prepareExportSvg(svg: SVGSVGElement): SVGSVGElement {
 			}
 		}
 		node.classList.remove('is-lasso-preview');
+
+		// Bake selection-ring visibility as SVG attributes so it renders
+		// correctly in the exported file without the app's stylesheet.
+		const isSelected = node.classList.contains('is-selected');
+		const ring = node.querySelector('.selection-ring');
+		if (ring) {
+			ring.setAttribute('fill', 'none');
+			if (isSelected) {
+				ring.setAttribute('stroke', '#9b2e23');
+				ring.setAttribute('stroke-width', '2.5');
+				ring.setAttribute('visibility', 'visible');
+			} else {
+				ring.setAttribute('visibility', 'hidden');
+			}
+		}
 	});
 
 	clone.querySelectorAll('path').forEach((path) => {
-		path.setAttribute('opacity', '1');
-		path.removeAttribute('stroke-dasharray');
+		// Preserve edge dimming opacity (set inline by D3 during selection);
+		// only reset paths stuck at 0 from entrance animation.
+		const inlineOp = (path as SVGPathElement).style.opacity;
+		const opNum = inlineOp ? parseFloat(inlineOp) : 1;
+		(path as SVGPathElement).style.opacity = String(opNum > 0 ? opNum : 1);
+
+		// Arc paths (loopback arcs) carry intentional stroke-dasharray '7,6'.
+		// Only wipe stroke-dasharray on normal edge paths (where the animation
+		// sets it temporarily and removes it on completion anyway).
+		const isArc =
+			path.classList.contains('arc-path') ||
+			path.classList.contains('arc-trunk');
+		if (!isArc) {
+			path.removeAttribute('stroke-dasharray');
+		}
 		path.removeAttribute('stroke-dashoffset');
 	});
 
