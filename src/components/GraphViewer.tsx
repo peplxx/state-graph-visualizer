@@ -13,9 +13,12 @@ import type {
 	GraphNode,
 	GraphEdge,
 	SelectedNodeData,
+	SelectionState,
 	NodeTaskDisplay
 } from '../types/graph';
 import type { LayoutName } from '../core/layoutConfig';
+
+const SELECTION_STROKE = '#9B2E23';
 
 // ── Internal types ────────────────────────────────────────────────────────────
 interface NodePos {
@@ -87,11 +90,15 @@ function findRootPath(
 	targetId: string,
 	data: GraphFile
 ): { nodes: Set<string>; edgeIds: Set<string> } {
-	const empty = { nodes: new Set<string>([targetId]), edgeIds: new Set<string>() };
+	const empty = {
+		nodes: new Set<string>([targetId]),
+		edgeIds: new Set<string>()
+	};
 
 	const root = data.nodes.find((n) => n.isInitial);
 	if (!root) return empty;
-	if (root.id === targetId) return { nodes: new Set([targetId]), edgeIds: new Set() };
+	if (root.id === targetId)
+		return { nodes: new Set([targetId]), edgeIds: new Set() };
 
 	const adj = new Map<string, Array<{ to: string; eid: string }>>();
 	for (const n of data.nodes) adj.set(n.id, []);
@@ -111,7 +118,10 @@ function findRootPath(
 
 	while (queue.length > 0) {
 		const cur = queue.shift()!;
-		if (cur === targetId) { found = true; break; }
+		if (cur === targetId) {
+			found = true;
+			break;
+		}
 		for (const { to, eid } of adj.get(cur) ?? []) {
 			if (!visited.has(to)) {
 				visited.add(to);
@@ -200,17 +210,23 @@ function computeRadialPositions(
 		const ch = spanChildren.get(id) ?? [];
 		leafCount.set(
 			id,
-			ch.length === 0 ? 1 : ch.reduce((s, c) => s + (leafCount.get(c) ?? 1), 0)
+			ch.length === 0
+				? 1
+				: ch.reduce((s, c) => s + (leafCount.get(c) ?? 1), 0)
 		);
 	}
 
 	// Assign angle ranges proportionally by subtree size, starting from top (−π/2)
 	const aStart = new Map<string, number>();
 	const aEnd = new Map<string, number>();
-	const totalRootLeaves = rootIds.reduce((s, r) => s + (leafCount.get(r) ?? 1), 0);
+	const totalRootLeaves = rootIds.reduce(
+		(s, r) => s + (leafCount.get(r) ?? 1),
+		0
+	);
 	let cur = -Math.PI / 2;
 	for (const rid of rootIds) {
-		const range = ((leafCount.get(rid) ?? 1) / totalRootLeaves) * 2 * Math.PI;
+		const range =
+			((leafCount.get(rid) ?? 1) / totalRootLeaves) * 2 * Math.PI;
 		aStart.set(rid, cur);
 		aEnd.set(rid, cur + range);
 		cur += range;
@@ -222,7 +238,10 @@ function computeRadialPositions(
 		const id = propQ[ph++];
 		const children = spanChildren.get(id) ?? [];
 		if (children.length === 0) continue;
-		const totalL = children.reduce((s, c) => s + (leafCount.get(c) ?? 1), 0);
+		const totalL = children.reduce(
+			(s, c) => s + (leafCount.get(c) ?? 1),
+			0
+		);
 		const as = aStart.get(id)!;
 		const ae = aEnd.get(id)!;
 		let cc = as;
@@ -251,9 +270,16 @@ function computeRadialPositions(
 		if (d === 0 && singleRoot) {
 			positions.set(n.id, { x: 0, y: 0 });
 		} else {
-			const r = d === 0 ? RADIAL_BASE * 0.45 : RADIAL_BASE + (d - 1) * RADIAL_GAP;
-			const angle = ((aStart.get(n.id) ?? 0) + (aEnd.get(n.id) ?? 2 * Math.PI)) / 2;
-			positions.set(n.id, { x: r * Math.cos(angle), y: r * Math.sin(angle) });
+			const r =
+				d === 0
+					? RADIAL_BASE * 0.45
+					: RADIAL_BASE + (d - 1) * RADIAL_GAP;
+			const angle =
+				((aStart.get(n.id) ?? 0) + (aEnd.get(n.id) ?? 2 * Math.PI)) / 2;
+			positions.set(n.id, {
+				x: r * Math.cos(angle),
+				y: r * Math.sin(angle)
+			});
 		}
 	}
 
@@ -359,6 +385,46 @@ function getBorderPoint(
 	const tc = ny !== 0 ? hh / Math.abs(ny) : Infinity;
 	const t = Math.min(tr, tc);
 	return { x: node.x + nx * t, y: node.y + ny * t };
+}
+
+function routeNormalEdge(
+	source: NodePos,
+	target: NodePos,
+	isRadial: boolean
+): string {
+	const srcEP = getBorderPoint(source, target.x, target.y);
+	const tgtEP = getBorderPoint(target, source.x, source.y);
+
+	const dx = tgtEP.x - srcEP.x;
+	const dy = tgtEP.y - srcEP.y;
+	const distance = Math.hypot(dx, dy);
+	if (distance < 1) {
+		return `M ${srcEP.x},${srcEP.y} L ${tgtEP.x},${tgtEP.y}`;
+	}
+
+	if (!isRadial) {
+		return `M ${srcEP.x},${srcEP.y} L ${tgtEP.x},${tgtEP.y}`;
+	}
+
+	const ux = dx / distance;
+	const uy = dy / distance;
+	const nx = -uy;
+	const ny = ux;
+
+	// Short axial handles keep entry/exit smooth; a tiny perpendicular offset
+	// adds a gentle fillet to the body without a visible outward bulge.
+	const handle = Math.max(12, Math.min(distance * 0.2, 44));
+	const round = Math.min(distance * 0.04, 4.5);
+	const cp1 = {
+		x: srcEP.x + ux * handle + nx * round,
+		y: srcEP.y + uy * handle + ny * round
+	};
+	const cp2 = {
+		x: tgtEP.x - ux * handle - nx * round,
+		y: tgtEP.y - uy * handle - ny * round
+	};
+
+	return `M ${srcEP.x},${srcEP.y} C ${cp1.x},${cp1.y} ${cp2.x},${cp2.y} ${tgtEP.x},${tgtEP.y}`;
 }
 
 interface Point {
@@ -495,7 +561,11 @@ function cubicPoint(
 	};
 }
 
-function pointIntersectsNode(point: Point, node: NodePos, padding: number): boolean {
+function pointIntersectsNode(
+	point: Point,
+	node: NodePos,
+	padding: number
+): boolean {
 	if (node.shape === 'circle') {
 		const dx = point.x - node.x;
 		const dy = point.y - node.y;
@@ -582,9 +652,7 @@ function routeLoopEdge(
 			}
 
 			const score =
-				collisions * 42 +
-				bend +
-				(side === preferredSide ? 0 : 4);
+				collisions * 42 + bend + (side === preferredSide ? 0 : 4);
 			if (!best || score < best.score) {
 				best = { start, control1, control2, end, score };
 			}
@@ -604,10 +672,7 @@ function routeBundleTrunk(bundle: LoopBundle, target: NodePos): string {
 
 	const tangent = { x: dx / distance, y: dy / distance };
 	const end = getBorderPoint(target, bundle.hub.x, bundle.hub.y);
-	const endDistance = Math.hypot(
-		end.x - bundle.hub.x,
-		end.y - bundle.hub.y
-	);
+	const endDistance = Math.hypot(end.x - bundle.hub.x, end.y - bundle.hub.y);
 	const handle = Math.max(24, endDistance * 0.34);
 	const control1 = {
 		x: bundle.hub.x + tangent.x * handle,
@@ -664,13 +729,156 @@ function routeBundleBranch(
 	return `M ${start.x},${start.y} C ${control1.x},${control1.y} ${control2.x},${control2.y} ${bundle.hub.x},${bundle.hub.y}`;
 }
 
+function isAdditiveSelect(event: MouseEvent | PointerEvent): boolean {
+	return event.metaKey || event.ctrlKey;
+}
+
+function pointInPolygon(x: number, y: number, polygon: Point[]): boolean {
+	if (polygon.length < 3) return false;
+	let inside = false;
+	for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+		const xi = polygon[i].x;
+		const yi = polygon[i].y;
+		const xj = polygon[j].x;
+		const yj = polygon[j].y;
+		const intersects =
+			yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+		if (intersects) inside = !inside;
+	}
+	return inside;
+}
+
+function isLassoModifier(
+	shiftKeyRef: { current: boolean },
+	event: { shiftKey: boolean }
+): boolean {
+	return shiftKeyRef.current || event.shiftKey;
+}
+
+function graphToWrapper(
+	wrapper: HTMLElement,
+	svg: SVGSVGElement,
+	point: Point
+): Point {
+	const wrapperRect = wrapper.getBoundingClientRect();
+	const svgRect = svg.getBoundingClientRect();
+	const transform = d3.zoomTransform(svg);
+	const [sx, sy] = transform.apply([point.x, point.y]);
+	return {
+		x: sx + (svgRect.left - wrapperRect.left),
+		y: sy + (svgRect.top - wrapperRect.top)
+	};
+}
+
+function nodeHitsLassoRegion(
+	node: NodePos,
+	wrapper: HTMLElement,
+	svg: SVGSVGElement,
+	wrapperRegion: Point[]
+): boolean {
+	if (wrapperRegion.length < 2) return false;
+
+	const hw = node.width / 2;
+	const hh = node.height / 2;
+	const graphSamples = [
+		{ x: node.x, y: node.y },
+		{ x: node.x - hw, y: node.y - hh },
+		{ x: node.x + hw, y: node.y - hh },
+		{ x: node.x + hw, y: node.y + hh },
+		{ x: node.x - hw, y: node.y + hh }
+	];
+	const samples = graphSamples.map((sample) =>
+		graphToWrapper(wrapper, svg, sample)
+	);
+
+	if (wrapperRegion.length >= 3) {
+		return samples.some((sample) =>
+			pointInPolygon(sample.x, sample.y, wrapperRegion)
+		);
+	}
+
+	const xs = wrapperRegion.map((point) => point.x);
+	const ys = wrapperRegion.map((point) => point.y);
+	const minX = Math.min(...xs);
+	const maxX = Math.max(...xs);
+	const minY = Math.min(...ys);
+	const maxY = Math.max(...ys);
+
+	return samples.some(
+		(sample) =>
+			sample.x >= minX &&
+			sample.x <= maxX &&
+			sample.y >= minY &&
+			sample.y <= maxY
+	);
+}
+
+function computeLassoHits(
+	wrapperPoints: Point[],
+	wrapper: HTMLElement,
+	svg: SVGSVGElement,
+	nodeMap: Map<string, NodePos>,
+	gRoot: SVGGElement | null
+): Set<string> {
+	if (wrapperPoints.length < 2) return new Set();
+
+	const hitIds = new Set<string>();
+	if (nodeMap.size > 0) {
+		for (const [id, node] of nodeMap) {
+			if (nodeHitsLassoRegion(node, wrapper, svg, wrapperPoints)) {
+				hitIds.add(id);
+			}
+		}
+	} else if (gRoot) {
+		d3.select(gRoot)
+			.selectAll<SVGGElement, NodePos>('.node-group')
+			.each((node) => {
+				if (nodeHitsLassoRegion(node, wrapper, svg, wrapperPoints)) {
+					hitIds.add(node.id);
+				}
+			});
+	}
+
+	return hitIds;
+}
+
+function computeGroupConnectivity(
+	selectedIds: Set<string>,
+	edges: GraphEdge[]
+): GroupConnectivity {
+	let internalEdges = 0;
+	let externalEdgesIn = 0;
+	let externalEdgesOut = 0;
+
+	for (const edge of edges) {
+		const sourceSelected = selectedIds.has(edge.source);
+		const targetSelected = selectedIds.has(edge.target);
+		if (sourceSelected && targetSelected) {
+			internalEdges++;
+		} else if (sourceSelected) {
+			externalEdgesOut++;
+		} else if (targetSelected) {
+			externalEdgesIn++;
+		}
+	}
+
+	return {
+		nodeCount: selectedIds.size,
+		internalEdges,
+		externalEdgesIn,
+		externalEdgesOut,
+		totalIndegree: 0,
+		totalOutdegree: 0
+	};
+}
+
 // ── Props / handle ────────────────────────────────────────────────────────────
 interface Props {
 	graphData: GraphFile | null;
 	layout: LayoutName;
 	showLoopbacks: boolean;
 	showNormalEdges: boolean;
-	onNodeClick?: (node: SelectedNodeData | null) => void;
+	onSelectionChange?: (selection: SelectionState | null) => void;
 	onStatsChange?: (stats: { nodes: number; edges: number }) => void;
 }
 
@@ -685,70 +893,319 @@ export interface GraphViewerHandle {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 const GraphViewer = forwardRef<GraphViewerHandle, Props>(
-	({ graphData, layout, showLoopbacks, showNormalEdges, onNodeClick, onStatsChange }, ref) => {
+	(
+		{
+			graphData,
+			layout,
+			showLoopbacks,
+			showNormalEdges,
+			onSelectionChange,
+			onStatsChange
+		},
+		ref
+	) => {
 		const svgRef = useRef<SVGSVGElement>(null);
+		const wrapperRef = useRef<HTMLDivElement>(null);
 		const gRef = useRef<SVGGElement | null>(null);
-		const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
-		const selectedIdRef = useRef<string | null>(null);
+		const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(
+			null
+		);
+		const selectedIdsRef = useRef<Set<string>>(new Set());
 		const nodePosRef = useRef<Map<string, NodePos>>(new Map());
+		const indegreeMapRef = useRef<Map<string, number>>(new Map());
+		const outdegreeMapRef = useRef<Map<string, number>>(new Map());
 		const graphDataRef = useRef(graphData);
 		graphDataRef.current = graphData;
-		const onNodeClickRef = useRef(onNodeClick);
-		onNodeClickRef.current = onNodeClick;
+		const onSelectionChangeRef = useRef(onSelectionChange);
+		onSelectionChangeRef.current = onSelectionChange;
+		const spaceKeyRef = useRef(false);
+		const shiftKeyRef = useRef(false);
+		const suppressClickRef = useRef(false);
+		const lassoActiveRef = useRef(false);
 		const onStatsChangeRef = useRef(onStatsChange);
 		onStatsChangeRef.current = onStatsChange;
 
 		const [activeLayout, setActiveLayout] = useState<LayoutName>(layout);
-		useEffect(() => { setActiveLayout(layout); }, [layout]);
+		useEffect(() => {
+			setActiveLayout(layout);
+		}, [layout]);
 
-		const [tooltip, setTooltip] = useState<{ x: number; y: number; lines: string[] } | null>(null);
+		const [tooltip, setTooltip] = useState<{
+			x: number;
+			y: number;
+			lines: string[];
+		} | null>(null);
+		const [lassoPoints, setLassoPoints] = useState<Point[]>([]);
+		const [panHeld, setPanHeld] = useState(false);
+		const [panDragging, setPanDragging] = useState(false);
+		const [shiftHeld, setShiftHeld] = useState(false);
+
+		const buildSelectionState = useCallback(
+			(ids: Set<string>): SelectionState | null => {
+				if (ids.size === 0) return null;
+				const data = graphDataRef.current;
+				if (!data) return null;
+
+				const nodes = [...ids]
+					.map((id) => {
+						const d = nodePosRef.current.get(id);
+						if (!d) return null;
+						return {
+							id: d.id,
+							label: d.label,
+							tasks: d.tasks,
+							isInitial: d.isInitial,
+							borderColor: d.borderColor,
+							fillColor: d.fillColor,
+							indegree: indegreeMapRef.current.get(id) ?? 0,
+							outdegree: outdegreeMapRef.current.get(id) ?? 0
+						} satisfies SelectedNodeData;
+					})
+					.filter((node): node is SelectedNodeData => node !== null)
+					.sort((a, b) => a.id.localeCompare(b.id));
+
+				if (nodes.length === 0) return null;
+				if (nodes.length === 1) return { nodes };
+
+				const group = computeGroupConnectivity(ids, data.edges);
+				group.totalIndegree = nodes.reduce(
+					(sum, node) => sum + node.indegree,
+					0
+				);
+				group.totalOutdegree = nodes.reduce(
+					(sum, node) => sum + node.outdegree,
+					0
+				);
+				return { nodes, group };
+			},
+			[]
+		);
+
+		const emitSelection = useCallback(
+			(ids: Set<string>) => {
+				onSelectionChangeRef.current?.(buildSelectionState(ids));
+			},
+			[buildSelectionState]
+		);
 
 		// ── Highlight: click selection ─────────────────────────────────────
 		const clearSelection = useCallback(() => {
 			if (!gRef.current) return;
 			const g = d3.select(gRef.current);
-			g.selectAll<SVGGElement, NodePos>('.node-group').style('opacity', 1);
+			g.selectAll<SVGGElement, NodePos>('.node-group')
+				.style('opacity', 1)
+				.classed('is-selected', false)
+				.classed('is-lasso-preview', false)
+				.each(function (d) {
+					const shape = d3.select(this).select('rect, circle');
+					if (shape.empty()) return;
+					shape
+						.attr('stroke', d.borderColor ?? '#1A1A1A')
+						.attr('stroke-width', d.isInitial ? 3 : 1.8)
+						.attr('stroke-dasharray', null);
+				});
 			g.selectAll<SVGPathElement, GraphEdge>('.edge-path')
 				.style('opacity', 1)
 				.attr('stroke', '#2C2C2C')
 				.attr('stroke-width', 1.4);
-			g.selectAll<SVGPathElement, GraphEdge>('.arc-path').style('opacity', 1);
-			g.selectAll<SVGPathElement, LoopBundle>('.arc-trunk').style('opacity', 1);
-		}, []);
-
-		const applySelection = useCallback((id: string, data: GraphFile) => {
-			if (!gRef.current) return;
-			const g = d3.select(gRef.current);
-			const connected = new Set([id]);
-			const connectedEdgeIds = new Set<string>();
-			for (const e of data.edges) {
-				if (e.source === id || e.target === id) {
-					connected.add(e.source);
-					connected.add(e.target);
-					connectedEdgeIds.add(edgeId(e));
-				}
-			}
-			g.selectAll<SVGGElement, NodePos>('.node-group').style('opacity', (d) => connected.has(d.id) ? 1 : 0.1);
-			g.selectAll<SVGPathElement, GraphEdge>('.edge-path').style('opacity', (d) =>
-				connectedEdgeIds.has(d.id ?? `${d.source}--${d.target}`) ? 1 : 0.05
-			);
-			g.selectAll<SVGPathElement, GraphEdge>('.arc-path').style('opacity', (d) =>
-				connectedEdgeIds.has(edgeId(d)) ? 1 : 0.05
+			g.selectAll<SVGPathElement, GraphEdge>('.arc-path').style(
+				'opacity',
+				1
 			);
 			g.selectAll<SVGPathElement, LoopBundle>('.arc-trunk').style(
 				'opacity',
-				(bundle) =>
-					bundle.edges.some((edge) => connectedEdgeIds.has(edgeId(edge)))
-						? 1
-						: 0.05
+				1
 			);
 		}, []);
+
+		const applySelection = useCallback(
+			(ids: Set<string>, data: GraphFile) => {
+				if (!gRef.current || ids.size === 0) return;
+				const g = d3.select(gRef.current);
+				const connected = new Set(ids);
+				const connectedEdgeIds = new Set<string>();
+				for (const e of data.edges) {
+					if (ids.has(e.source) || ids.has(e.target)) {
+						connected.add(e.source);
+						connected.add(e.target);
+						connectedEdgeIds.add(edgeId(e));
+					}
+				}
+				g.selectAll<SVGGElement, NodePos>('.node-group')
+					.style('opacity', (d) => (connected.has(d.id) ? 1 : 0.1))
+					.classed('is-selected', (d) => ids.has(d.id))
+					.classed('is-lasso-preview', false)
+					.each(function (d) {
+						const group = d3.select(this);
+						const shape = group.select('rect, circle');
+						if (shape.empty()) return;
+						if (ids.has(d.id)) {
+							shape
+								.attr('stroke', SELECTION_STROKE)
+								.attr('stroke-width', 2.4)
+								.attr('stroke-dasharray', null);
+							return;
+						}
+						shape
+							.attr('stroke', d.borderColor ?? '#1A1A1A')
+							.attr('stroke-width', d.isInitial ? 3 : 1.8)
+							.attr('stroke-dasharray', null);
+					});
+				g.selectAll<SVGPathElement, GraphEdge>('.edge-path').style(
+					'opacity',
+					(d) => (connectedEdgeIds.has(edgeId(d)) ? 1 : 0.05)
+				);
+				g.selectAll<SVGPathElement, GraphEdge>('.arc-path').style(
+					'opacity',
+					(d) => (connectedEdgeIds.has(edgeId(d)) ? 1 : 0.05)
+				);
+				g.selectAll<SVGPathElement, LoopBundle>('.arc-trunk').style(
+					'opacity',
+					(bundle) =>
+						bundle.edges.some((edge) =>
+							connectedEdgeIds.has(edgeId(edge))
+						)
+							? 1
+							: 0.05
+				);
+			},
+			[]
+		);
+
+		const applySelectionRef = useRef(applySelection);
+		applySelectionRef.current = applySelection;
+		const clearSelectionRef = useRef(clearSelection);
+		clearSelectionRef.current = clearSelection;
+		const emitSelectionRef = useRef(emitSelection);
+		emitSelectionRef.current = emitSelection;
+
+		const applyLassoPreview = useCallback(
+			(hitIds: Set<string>, additive: boolean) => {
+				if (!gRef.current) return;
+				const g = d3.select(gRef.current);
+
+				const styleNodeShape = (
+					group: d3.Selection<
+						d3.BaseType,
+						NodePos,
+						d3.BaseType,
+						unknown
+					>,
+					d: NodePos,
+					mode: 'normal' | 'preview' | 'selected'
+				) => {
+					const shape = group.select('rect, circle');
+					if (shape.empty()) return;
+
+					if (mode === 'selected') {
+						shape
+							.attr('stroke', SELECTION_STROKE)
+							.attr('stroke-width', 2.4)
+							.attr('stroke-dasharray', null);
+						return;
+					}
+
+					if (mode === 'preview') {
+						shape
+							.attr('stroke', SELECTION_STROKE)
+							.attr('stroke-width', 2)
+							.attr('stroke-dasharray', '5 3');
+						return;
+					}
+
+					shape
+						.attr('stroke', d.borderColor ?? '#1A1A1A')
+						.attr('stroke-width', d.isInitial ? 3 : 1.8)
+						.attr('stroke-dasharray', null);
+				};
+
+				g.selectAll<SVGGElement, NodePos>('.node-group').each(function (
+					d
+				) {
+					const group = d3.select(this);
+					const inPreview = hitIds.has(d.id);
+					const isSelected =
+						additive && selectedIdsRef.current.has(d.id);
+
+					group
+						.style('opacity', 1)
+						.classed('is-selected', isSelected)
+						.classed('is-lasso-preview', inPreview);
+
+					if (isSelected) {
+						styleNodeShape(group, d, 'selected');
+					} else if (inPreview) {
+						styleNodeShape(group, d, 'preview');
+					} else {
+						styleNodeShape(group, d, 'normal');
+					}
+				});
+				g.selectAll<SVGPathElement, GraphEdge>('.edge-path').style(
+					'opacity',
+					1
+				);
+				g.selectAll<SVGPathElement, GraphEdge>('.arc-path').style(
+					'opacity',
+					1
+				);
+				g.selectAll<SVGPathElement, LoopBundle>('.arc-trunk').style(
+					'opacity',
+					1
+				);
+			},
+			[]
+		);
+
+		const clearLassoPreview = useCallback(() => {
+			if (!gRef.current) return;
+			const g = d3.select(gRef.current);
+			g.selectAll<SVGGElement, NodePos>('.node-group').each(function (d) {
+				const group = d3.select(this);
+				group.classed('is-lasso-preview', false);
+				const selected = selectedIdsRef.current.has(d.id);
+				const shape = group.select('rect, circle');
+				if (!shape.empty() && !selected) {
+					shape
+						.attr('stroke', d.borderColor ?? '#1A1A1A')
+						.attr('stroke-width', d.isInitial ? 3 : 1.8)
+						.attr('stroke-dasharray', null);
+				}
+			});
+
+			const data = graphDataRef.current;
+			if (selectedIdsRef.current.size > 0 && data) {
+				applySelectionRef.current(selectedIdsRef.current, data);
+				return;
+			}
+
+			g.selectAll<SVGGElement, NodePos>('.node-group').style('opacity', 1);
+			g.selectAll<SVGPathElement, GraphEdge>('.edge-path').style(
+				'opacity',
+				1
+			);
+			g.selectAll<SVGPathElement, GraphEdge>('.arc-path').style(
+				'opacity',
+				1
+			);
+			g.selectAll<SVGPathElement, LoopBundle>('.arc-trunk').style(
+				'opacity',
+				1
+			);
+		}, []);
+
+		const applyLassoPreviewRef = useRef(applyLassoPreview);
+		applyLassoPreviewRef.current = applyLassoPreview;
+		const clearLassoPreviewRef = useRef(clearLassoPreview);
+		clearLassoPreviewRef.current = clearLassoPreview;
 
 		// ── Highlight: hover path from root ───────────────────────────────
 		const applyHoverPath = useCallback((id: string, data: GraphFile) => {
 			if (!gRef.current) return;
 			const g = d3.select(gRef.current);
-			const { nodes: pathNodes, edgeIds: pathEdges } = findRootPath(id, data);
+			const { nodes: pathNodes, edgeIds: pathEdges } = findRootPath(
+				id,
+				data
+			);
 
 			g.selectAll<SVGGElement, NodePos>('.node-group').style(
 				'opacity',
@@ -761,7 +1218,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				})
 				.attr('stroke', (d) => {
 					const eid = d.id ?? `${d.source}--${d.target}`;
-					return pathEdges.has(eid) ? '#2563EB' : '#2C2C2C';
+					return pathEdges.has(eid) ? SELECTION_STROKE : '#2C2C2C';
 				})
 				.attr('stroke-width', (d) => {
 					const eid = d.id ?? `${d.source}--${d.target}`;
@@ -769,10 +1226,18 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				})
 				.attr('marker-end', (d) => {
 					const eid = d.id ?? `${d.source}--${d.target}`;
-					return pathEdges.has(eid) ? 'url(#arrow-normal-blue)' : 'url(#arrow-normal)';
+					return pathEdges.has(eid)
+						? 'url(#arrow-normal-blue)'
+						: 'url(#arrow-normal)';
 				});
-			g.selectAll<SVGPathElement, GraphEdge>('.arc-path').style('opacity', 0.08);
-			g.selectAll<SVGPathElement, LoopBundle>('.arc-trunk').style('opacity', 0.08);
+			g.selectAll<SVGPathElement, GraphEdge>('.arc-path').style(
+				'opacity',
+				0.08
+			);
+			g.selectAll<SVGPathElement, LoopBundle>('.arc-trunk').style(
+				'opacity',
+				0.08
+			);
 		}, []);
 
 		const clearHoverPath = useCallback(() => {
@@ -802,7 +1267,11 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			const h = svg.clientHeight || svg.getBoundingClientRect().height;
 			if (w < 1 || h < 1) return;
 
-			const scale = Math.min((0.88 * w) / bounds.width, (0.88 * h) / bounds.height, 3);
+			const scale = Math.min(
+				(0.88 * w) / bounds.width,
+				(0.88 * h) / bounds.height,
+				3
+			);
 			const tx = w / 2 - scale * (bounds.x + bounds.width / 2);
 			const ty = h / 2 - scale * (bounds.y + bounds.height / 2);
 
@@ -826,15 +1295,17 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				defs.append('marker')
 					.attr('id', id)
 					.attr('viewBox', '0 0 10 10')
-					.attr('refX', 9).attr('refY', 5)
-					.attr('markerWidth', 6).attr('markerHeight', 6)
+					.attr('refX', 9)
+					.attr('refY', 5)
+					.attr('markerWidth', 6)
+					.attr('markerHeight', 6)
 					.attr('orient', 'auto')
 					.append('path')
 					.attr('d', 'M 0 1 L 10 5 L 0 9 Z')
 					.attr('fill', color);
 			};
 			addMarker('arrow-normal', '#2C2C2C');
-			addMarker('arrow-normal-blue', '#2563EB');
+			addMarker('arrow-normal-blue', SELECTION_STROKE);
 			addMarker('arrow-loop', 'context-stroke');
 
 			const g = svg.append('g').attr('class', 'zoom-group');
@@ -845,20 +1316,28 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			g.append('g').attr('class', 'edges-layer');
 			g.append('g').attr('class', 'nodes-layer');
 
-			const zoom = d3.zoom<SVGSVGElement, unknown>()
+			const zoom = d3
+				.zoom<SVGSVGElement, unknown>()
 				.scaleExtent([0.02, 10])
+				.filter((event) => {
+					if (event.type === 'wheel' || event.button === 1) return true;
+					if (spaceKeyRef.current) {
+						return (
+							!event.ctrlKey &&
+							!event.metaKey &&
+							event.button !== 2
+						);
+					}
+					return false;
+				})
+				.on('start', () => {
+					if (spaceKeyRef.current) setPanDragging(true);
+				})
+				.on('end', () => setPanDragging(false))
 				.on('zoom', (event) => g.attr('transform', event.transform));
 
 			svg.call(zoom);
 			zoomRef.current = zoom;
-
-			svg.on('click', (event) => {
-				if (event.target === svgRef.current) {
-					selectedIdRef.current = null;
-					clearSelection();
-					onNodeClickRef.current?.(null);
-				}
-			});
 
 			return () => {
 				svg.selectAll('*').remove();
@@ -867,12 +1346,289 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			};
 		}, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+		useEffect(() => {
+			const zoom = zoomRef.current;
+			const svg = svgRef.current;
+			if (!zoom || !svg) return;
+			zoom.filter((event) => {
+				if (event.type === 'wheel' || event.button === 1) return true;
+				if (spaceKeyRef.current) {
+					return (
+						!event.ctrlKey && !event.metaKey && event.button !== 2
+					);
+				}
+				return false;
+			});
+			d3.select(svg).call(zoom);
+		}, [panHeld]);
+
+		useEffect(() => {
+			const isTypingTarget = (target: EventTarget | null) =>
+				target instanceof HTMLInputElement ||
+				target instanceof HTMLTextAreaElement ||
+				target instanceof HTMLSelectElement;
+
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (isTypingTarget(event.target)) return;
+
+				if (event.key === 'Shift' && !event.repeat) {
+					shiftKeyRef.current = true;
+					setShiftHeld(true);
+				}
+
+				if (event.code === 'Space' && !event.repeat) {
+					event.preventDefault();
+					spaceKeyRef.current = true;
+					setPanHeld(true);
+				}
+			};
+
+			const onKeyUp = (event: KeyboardEvent) => {
+				if (event.key === 'Shift') {
+					shiftKeyRef.current = false;
+					setShiftHeld(false);
+				}
+
+				if (event.code === 'Space') {
+					spaceKeyRef.current = false;
+					setPanHeld(false);
+					setPanDragging(false);
+				}
+			};
+
+			const onBlur = () => {
+				shiftKeyRef.current = false;
+				setShiftHeld(false);
+				spaceKeyRef.current = false;
+				setPanHeld(false);
+				setPanDragging(false);
+			};
+
+			window.addEventListener('keydown', onKeyDown);
+			window.addEventListener('keyup', onKeyUp);
+			window.addEventListener('blur', onBlur);
+			return () => {
+				window.removeEventListener('keydown', onKeyDown);
+				window.removeEventListener('keyup', onKeyUp);
+				window.removeEventListener('blur', onBlur);
+			};
+		}, []);
+
+		useEffect(() => {
+			const svg = svgRef.current;
+			const wrapper = wrapperRef.current;
+			if (!svg || !wrapper) return;
+
+			const DRAG_THRESHOLD = 4;
+			let pendingPointer = false;
+			let drawing = false;
+			let pointerId = -1;
+			let startClient = { x: 0, y: 0 };
+			let wrapperPoints: Point[] = [];
+			let additiveAtStart = false;
+
+			const wrapperPoint = (clientX: number, clientY: number): Point => {
+				const rect = wrapper.getBoundingClientRect();
+				return {
+					x: clientX - rect.left,
+					y: clientY - rect.top
+				};
+			};
+
+			const clearGraphSelection = () => {
+				selectedIdsRef.current = new Set();
+				clearSelectionRef.current();
+				onSelectionChangeRef.current?.(null);
+			};
+
+			const cleanupWindowListeners = () => {
+				window.removeEventListener('pointermove', onWindowPointerMove);
+				window.removeEventListener('pointerup', onWindowPointerUp);
+				window.removeEventListener('pointercancel', onWindowPointerUp);
+			};
+
+			const finishLasso = () => {
+				setLassoPoints([]);
+				clearLassoPreviewRef.current();
+
+				if (wrapperPoints.length < 2) return;
+
+				const hitIds = computeLassoHits(
+					wrapperPoints,
+					wrapper,
+					svg,
+					nodePosRef.current,
+					gRef.current
+				);
+
+				const next = additiveAtStart
+					? new Set([...selectedIdsRef.current, ...hitIds])
+					: hitIds;
+				selectedIdsRef.current = next;
+
+				const data = graphDataRef.current;
+				if (!data) return;
+				if (next.size === 0) {
+					if (!additiveAtStart) clearGraphSelection();
+					return;
+				}
+
+				applySelectionRef.current(next, data);
+				emitSelectionRef.current(next);
+			};
+
+			const updateLassoPreview = () => {
+				if (wrapperPoints.length < 2) return;
+				const hitIds = computeLassoHits(
+					wrapperPoints,
+					wrapper,
+					svg,
+					nodePosRef.current,
+					gRef.current
+				);
+				applyLassoPreviewRef.current(hitIds, additiveAtStart);
+			};
+
+			const onWindowPointerMove = (event: PointerEvent) => {
+				if (event.pointerId !== pointerId) return;
+
+				const point = wrapperPoint(event.clientX, event.clientY);
+
+				if (pendingPointer && !drawing) {
+					const moved = Math.hypot(
+						event.clientX - startClient.x,
+						event.clientY - startClient.y
+					);
+					if (moved < DRAG_THRESHOLD) return;
+
+					event.preventDefault();
+					pendingPointer = false;
+					drawing = true;
+					wrapperPoints.push(point);
+					setLassoPoints([...wrapperPoints]);
+					updateLassoPreview();
+					return;
+				}
+
+				if (!drawing) return;
+
+				event.preventDefault();
+				const last = wrapperPoints[wrapperPoints.length - 1];
+				if (Math.hypot(point.x - last.x, point.y - last.y) < 2) return;
+				wrapperPoints.push(point);
+				setLassoPoints([...wrapperPoints]);
+				updateLassoPreview();
+			};
+
+			const onWindowPointerUp = (event: PointerEvent) => {
+				if (event.pointerId !== pointerId) return;
+
+				cleanupWindowListeners();
+				lassoActiveRef.current = false;
+
+				if (wrapper.hasPointerCapture(event.pointerId)) {
+					wrapper.releasePointerCapture(event.pointerId);
+				}
+
+				if (drawing) {
+					drawing = false;
+					finishLasso();
+					suppressClickRef.current = true;
+				} else {
+					clearLassoPreviewRef.current();
+					setLassoPoints([]);
+				}
+
+				pendingPointer = false;
+				pointerId = -1;
+			};
+
+			const onPointerDown = (event: PointerEvent) => {
+				if (spaceKeyRef.current || event.button !== 0) return;
+				if (!isLassoModifier(shiftKeyRef, event)) return;
+
+				event.preventDefault();
+				event.stopPropagation();
+
+				lassoActiveRef.current = true;
+				setTooltip(null);
+
+				pendingPointer = true;
+				drawing = false;
+				pointerId = event.pointerId;
+				additiveAtStart = isAdditiveSelect(event);
+				startClient = { x: event.clientX, y: event.clientY };
+				wrapperPoints = [wrapperPoint(event.clientX, event.clientY)];
+				wrapper.setPointerCapture(event.pointerId);
+
+				window.addEventListener('pointermove', onWindowPointerMove, {
+					passive: false
+				});
+				window.addEventListener('pointerup', onWindowPointerUp);
+				window.addEventListener('pointercancel', onWindowPointerUp);
+			};
+
+			const onBackgroundClick = (event: MouseEvent) => {
+				if (suppressClickRef.current) {
+					suppressClickRef.current = false;
+					event.stopPropagation();
+					return;
+				}
+				if ((event.target as Element).closest('.node-group')) return;
+				if (isAdditiveSelect(event)) return;
+				clearGraphSelection();
+			};
+
+			const onClickCapture = (event: MouseEvent) => {
+				if (!suppressClickRef.current) return;
+				suppressClickRef.current = false;
+				event.stopPropagation();
+				event.preventDefault();
+			};
+
+			const onSelectStart = (event: Event) => {
+				if (isLassoModifier(shiftKeyRef, event as PointerEvent)) {
+					event.preventDefault();
+				}
+			};
+
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.code === 'Escape') {
+					if (
+						event.target instanceof HTMLInputElement ||
+						event.target instanceof HTMLTextAreaElement
+					) {
+						return;
+					}
+					clearLassoPreviewRef.current();
+					setLassoPoints([]);
+					lassoActiveRef.current = false;
+					clearGraphSelection();
+					return;
+				}
+			};
+
+			wrapper.addEventListener('pointerdown', onPointerDown, true);
+			svg.addEventListener('click', onBackgroundClick);
+			wrapper.addEventListener('click', onClickCapture, true);
+			wrapper.addEventListener('selectstart', onSelectStart);
+			window.addEventListener('keydown', onKeyDown);
+
+			return () => {
+				cleanupWindowListeners();
+				wrapper.removeEventListener('pointerdown', onPointerDown, true);
+				svg.removeEventListener('click', onBackgroundClick);
+				wrapper.removeEventListener('click', onClickCapture, true);
+				wrapper.removeEventListener('selectstart', onSelectStart);
+				window.removeEventListener('keydown', onKeyDown);
+			};
+		}, []);
+
 		// ── Draw graph ────────────────────────────────────────────────────
 		useEffect(() => {
 			if (!graphData || !gRef.current) return;
 
 			const g = d3.select(gRef.current);
-			selectedIdRef.current = null;
 			setTooltip(null);
 
 			const isRadial = activeLayout === 'radial';
@@ -886,24 +1642,35 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			let ringRadii: number[] = [];
 
 			if (isRadial) {
-				const result = computeRadialPositions(graphData.nodes, graphData.edges);
+				const result = computeRadialPositions(
+					graphData.nodes,
+					graphData.edges
+				);
 				positions = result.positions;
 				ringRadii = result.ringRadii;
 			} else {
-				positions = computeTreePositions(graphData.nodes, graphData.edges, sampleSize.width);
+				positions = computeTreePositions(
+					graphData.nodes,
+					graphData.edges,
+					sampleSize.width
+				);
 			}
 
 			// ── Node map
 			const nodeMap = new Map<string, NodePos>();
 			for (const node of graphData.nodes) {
-				const { width: wFull, height: hFull } = estimateNodeSize(node.tasks);
-				const width  = isRadial ? Math.round(wFull  * 0.72) : wFull;
-				const height = isRadial ? Math.round(hFull  * 0.72) : hFull;
+				const { width: wFull, height: hFull } = estimateNodeSize(
+					node.tasks
+				);
+				const width = isRadial ? Math.round(wFull * 0.72) : wFull;
+				const height = isRadial ? Math.round(hFull * 0.72) : hFull;
 				const pos = positions.get(node.id) ?? { x: 0, y: 0 };
 				nodeMap.set(node.id, {
 					id: node.id,
-					x: pos.x, y: pos.y,
-					width, height,
+					x: pos.x,
+					y: pos.y,
+					width,
+					height,
 					radius: nodeCircleRadius(node.tasks),
 					shape: 'rect',
 					label: node.label ?? buildNodeLabel(node.tasks),
@@ -915,16 +1682,33 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			}
 			nodePosRef.current = nodeMap;
 
+			selectedIdsRef.current = new Set(
+				[...selectedIdsRef.current].filter((id) => nodeMap.has(id))
+			);
+			if (selectedIdsRef.current.size === 0) {
+				onSelectionChangeRef.current?.(null);
+			}
+
 			// ── Degree maps
 			const indegreeMap = new Map<string, number>();
 			const outdegreeMap = new Map<string, number>();
-			for (const n of graphData.nodes) { indegreeMap.set(n.id, 0); outdegreeMap.set(n.id, 0); }
+			for (const n of graphData.nodes) {
+				indegreeMap.set(n.id, 0);
+				outdegreeMap.set(n.id, 0);
+			}
 			for (const e of graphData.edges) {
 				indegreeMap.set(e.target, (indegreeMap.get(e.target) ?? 0) + 1);
-				outdegreeMap.set(e.source, (outdegreeMap.get(e.source) ?? 0) + 1);
+				outdegreeMap.set(
+					e.source,
+					(outdegreeMap.get(e.source) ?? 0) + 1
+				);
 			}
+			indegreeMapRef.current = indegreeMap;
+			outdegreeMapRef.current = outdegreeMap;
 
-			const normalEdges = graphData.edges.filter((e) => e.type === 'normal');
+			const normalEdges = graphData.edges.filter(
+				(e) => e.type === 'normal'
+			);
 			const loopEdges = graphData.edges.filter((e) => e.type === 'loop');
 			const loopIncoming = new Map<string, number>();
 			for (const edge of loopEdges) {
@@ -943,14 +1727,16 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 
 			if (isRadial) {
 				ringRadii.forEach((r, i) => {
-					ringsLayer.append('circle')
+					ringsLayer
+						.append('circle')
 						.attr('r', r)
 						.attr('fill', 'none')
 						.attr('stroke', '#BBBBBB')
 						.attr('stroke-width', 0.6)
 						.attr('stroke-dasharray', '5,5');
 
-					ringsLayer.append('text')
+					ringsLayer
+						.append('text')
 						.attr('x', r + 6)
 						.attr('y', 4)
 						.attr('font-size', '10px')
@@ -1038,17 +1824,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 					const src = nodeMap.get(edge.source);
 					const tgt = nodeMap.get(edge.target);
 					if (!src || !tgt) return '';
-					const srcEP = getBorderPoint(src, tgt.x, tgt.y);
-					const tgtEP = getBorderPoint(tgt, src.x, src.y);
-					if (isRadial) {
-						// Subtle outward curve from graph centre
-						const mxn = (src.x + tgt.x) / 2;
-						const myn = (src.y + tgt.y) / 2;
-						const mdist = Math.sqrt(mxn * mxn + myn * myn);
-						const pull = mdist > 5 ? 1.18 : 1;
-						return `M ${srcEP.x},${srcEP.y} Q ${mxn * pull},${myn * pull} ${tgtEP.x},${tgtEP.y}`;
-					}
-					return `M ${srcEP.x},${srcEP.y} L ${tgtEP.x},${tgtEP.y}`;
+					return routeNormalEdge(src, tgt, isRadial);
 				});
 
 			// ── Nodes ─────────────────────────────────────────────────────
@@ -1064,17 +1840,27 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				.style('cursor', 'pointer');
 
 			// Initial state arrow
-			nodeGroups.filter((d) => d.isInitial).append('line')
+			nodeGroups
+				.filter((d) => d.isInitial)
+				.append('line')
 				.attr('x1', 0)
-				.attr('y1', (d) => -(d.shape === 'circle' ? d.radius : d.height / 2) - 22)
+				.attr(
+					'y1',
+					(d) =>
+						-(d.shape === 'circle' ? d.radius : d.height / 2) - 22
+				)
 				.attr('x2', 0)
-				.attr('y2', (d) => -(d.shape === 'circle' ? d.radius : d.height / 2) - 4)
+				.attr(
+					'y2',
+					(d) => -(d.shape === 'circle' ? d.radius : d.height / 2) - 4
+				)
 				.attr('stroke', '#1A1A1A')
 				.attr('stroke-width', 1.8)
 				.attr('marker-end', 'url(#arrow-normal)');
 
 			// Circle shape
-			nodeGroups.filter((d) => d.shape === 'circle')
+			nodeGroups
+				.filter((d) => d.shape === 'circle')
 				.append('circle')
 				.attr('r', (d) => d.radius)
 				.attr('fill', (d) => d.fillColor ?? '#FFFFFF')
@@ -1082,13 +1868,15 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				.attr('stroke-width', (d) => (d.isInitial ? 3 : 1.8));
 
 			// Rect shape
-			nodeGroups.filter((d) => d.shape === 'rect')
+			nodeGroups
+				.filter((d) => d.shape === 'rect')
 				.append('rect')
 				.attr('x', (d) => -d.width / 2)
 				.attr('y', (d) => -d.height / 2)
 				.attr('width', (d) => d.width)
 				.attr('height', (d) => d.height)
-				.attr('rx', 6).attr('ry', 6)
+				.attr('rx', 6)
+				.attr('ry', 6)
 				.attr('fill', (d) => d.fillColor ?? '#FFFFFF')
 				.attr('stroke', (d) => d.borderColor ?? '#1A1A1A')
 				.attr('stroke-width', (d) => (d.isInitial ? 3 : 1.8));
@@ -1102,41 +1890,56 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 				const totalH = lines.length * lineH;
 				const startY = -totalH / 2 + lineH * 0.72;
 
-				const textEl = group.append('text')
+				const textEl = group
+					.append('text')
 					.attr('text-anchor', 'middle')
-					.attr('font-family', '"JetBrains Mono", "Fira Mono", monospace')
+					.attr(
+						'font-family',
+						'"JetBrains Mono", "Fira Mono", monospace'
+					)
 					.attr('font-size', `${fontSize}px`)
 					.attr('fill', '#1A1A1A')
 					.attr('pointer-events', 'none');
 
 				lines.forEach((line, i) => {
-					textEl.append('tspan').attr('x', 0).attr('y', startY + i * lineH).text(line);
+					textEl
+						.append('tspan')
+						.attr('x', 0)
+						.attr('y', startY + i * lineH)
+						.text(line);
 				});
 			});
 
 			// ── Events ────────────────────────────────────────────────────
 			nodeGroups.on('mouseenter', function (_evt, d) {
 				if (!svgRef.current) return;
+				if (lassoActiveRef.current) return;
 
 				// Tooltip
 				const transform = d3.zoomTransform(svgRef.current);
 				const [px, py] = transform.apply([d.x, d.y]);
 				const lines: string[] = [`ID: ${d.id}`];
 				d.tasks.forEach((t, i) => {
-					const rel = t.release === 'up' ? ' ↑ released' : t.release === 'down' ? ' ↓ completing' : '';
+					const rel =
+						t.release === 'up'
+							? ' ↑ released'
+							: t.release === 'down'
+								? ' ↓ completing'
+								: '';
 					lines.push(`τ${i + 1}: c=${t.task.c}  d=${t.task.d}${rel}`);
 				});
 				setTooltip({ x: px + 14, y: py - 8, lines });
 
 				// Hover path highlight only when nothing is selected
-				if (!selectedIdRef.current) {
+				if (selectedIdsRef.current.size === 0) {
 					applyHoverPath(d.id, graphData);
 				}
 			});
 
 			nodeGroups.on('mouseleave', () => {
+				if (lassoActiveRef.current) return;
 				setTooltip(null);
-				if (!selectedIdRef.current) {
+				if (selectedIdsRef.current.size === 0) {
 					clearHoverPath();
 				}
 			});
@@ -1144,43 +1947,78 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			nodeGroups.on('click', function (event, d) {
 				event.stopPropagation();
 
-				if (selectedIdRef.current === d.id) {
-					selectedIdRef.current = null;
-					clearSelection();
-					onNodeClickRef.current?.(null);
+				if (suppressClickRef.current) {
+					suppressClickRef.current = false;
 					return;
 				}
 
-				selectedIdRef.current = d.id;
-				applySelection(d.id, graphData);
-				onNodeClickRef.current?.({
-					id: d.id, label: d.label, tasks: d.tasks,
-					isInitial: d.isInitial, borderColor: d.borderColor, fillColor: d.fillColor,
-					indegree: indegreeMap.get(d.id) ?? 0,
-					outdegree: outdegreeMap.get(d.id) ?? 0
-				});
+				let next: Set<string>;
+				if (isAdditiveSelect(event)) {
+					next = new Set(selectedIdsRef.current);
+					if (next.has(d.id)) next.delete(d.id);
+					else next.add(d.id);
+				} else {
+					next = new Set([d.id]);
+				}
+
+				selectedIdsRef.current = next;
+				if (next.size === 0) {
+					clearSelection();
+					onSelectionChangeRef.current?.(null);
+					return;
+				}
+
+				applySelection(next, graphData);
+				emitSelection(next);
 			});
 
-			onStatsChangeRef.current?.({ nodes: graphData.nodes.length, edges: graphData.edges.length });
+			if (selectedIdsRef.current.size > 0) {
+				applySelection(selectedIdsRef.current, graphData);
+				emitSelection(selectedIdsRef.current);
+			}
+
+			onStatsChangeRef.current?.({
+				nodes: graphData.nodes.length,
+				edges: graphData.edges.length
+			});
 			requestAnimationFrame(() => fitView(true));
-		}, [graphData, activeLayout, showLoopbacks, showNormalEdges, clearSelection, applySelection, applyHoverPath, clearHoverPath, fitView]);
+		}, [
+			graphData,
+			activeLayout,
+			showLoopbacks,
+			showNormalEdges,
+			clearSelection,
+			applySelection,
+			applyHoverPath,
+			clearHoverPath,
+			fitView,
+			emitSelection
+		]);
 
 		// ── Imperative handle ─────────────────────────────────────────────
 		useImperativeHandle(ref, () => ({
-			fit() { fitView(true); },
+			fit() {
+				fitView(true);
+			},
 
 			zoomIn() {
 				const svg = svgRef.current;
 				const zoom = zoomRef.current;
 				if (!svg || !zoom) return;
-				d3.select(svg).transition().duration(200).call(zoom.scaleBy, 1.3);
+				d3.select(svg)
+					.transition()
+					.duration(200)
+					.call(zoom.scaleBy, 1.3);
 			},
 
 			zoomOut() {
 				const svg = svgRef.current;
 				const zoom = zoomRef.current;
 				if (!svg || !zoom) return;
-				d3.select(svg).transition().duration(200).call(zoom.scaleBy, 0.77);
+				d3.select(svg)
+					.transition()
+					.duration(200)
+					.call(zoom.scaleBy, 0.77);
 			},
 
 			exportPNG() {
@@ -1195,44 +2033,64 @@ const GraphViewer = forwardRef<GraphViewerHandle, Props>(
 			focusNode(id: string) {
 				const nodeData = nodePosRef.current.get(id);
 				const data = graphDataRef.current;
-				if (!nodeData || !data || !svgRef.current || !zoomRef.current) return;
+				if (!nodeData || !data || !svgRef.current || !zoomRef.current)
+					return;
 
-				selectedIdRef.current = id;
-				applySelection(id, data);
-
-				const indegreeMap = new Map<string, number>();
-				const outdegreeMap = new Map<string, number>();
-				for (const n of data.nodes) { indegreeMap.set(n.id, 0); outdegreeMap.set(n.id, 0); }
-				for (const e of data.edges) {
-					indegreeMap.set(e.target, (indegreeMap.get(e.target) ?? 0) + 1);
-					outdegreeMap.set(e.source, (outdegreeMap.get(e.source) ?? 0) + 1);
-				}
-
-				onNodeClickRef.current?.({
-					id: nodeData.id, label: nodeData.label, tasks: nodeData.tasks,
-					isInitial: nodeData.isInitial, borderColor: nodeData.borderColor, fillColor: nodeData.fillColor,
-					indegree: indegreeMap.get(id) ?? 0, outdegree: outdegreeMap.get(id) ?? 0
-				});
+				const next = new Set([id]);
+				selectedIdsRef.current = next;
+				applySelection(next, data);
+				emitSelection(next);
 
 				const svg = svgRef.current;
 				const zoom = zoomRef.current;
 				const w = svg.clientWidth || svg.getBoundingClientRect().width;
-				const h = svg.clientHeight || svg.getBoundingClientRect().height;
-				d3.select(svg).transition().duration(450).call(
-					zoom.transform,
-					d3.zoomIdentity.translate(w / 2 - 2 * nodeData.x, h / 2 - 2 * nodeData.y).scale(2)
-				);
+				const h =
+					svg.clientHeight || svg.getBoundingClientRect().height;
+				d3.select(svg)
+					.transition()
+					.duration(450)
+					.call(
+						zoom.transform,
+						d3.zoomIdentity
+							.translate(
+								w / 2 - 2 * nodeData.x,
+								h / 2 - 2 * nodeData.y
+							)
+							.scale(2)
+					);
 			},
 
-			runLayout(name: LayoutName) { setActiveLayout(name); }
+			runLayout(name: LayoutName) {
+				setActiveLayout(name);
+			}
 		}));
 
 		return (
-			<div className="graph-viewer-wrapper">
-				<svg ref={svgRef} className="graph-svg" style={{ width: '100%', height: '100%' }} />
+			<div
+				ref={wrapperRef}
+				className={`graph-viewer-wrapper${shiftHeld || lassoPoints.length > 0 ? ' lasso-mode' : ''}${panHeld ? ' pan-mode' : ''}${panDragging ? ' pan-dragging' : ''}`}
+			>
+				<svg
+					ref={svgRef}
+					className="graph-svg"
+					style={{ width: '100%', height: '100%' }}
+				/>
+				{lassoPoints.length > 1 && (
+					<svg className="lasso-overlay" aria-hidden="true">
+						<path
+							className="lasso-path"
+							d={`M ${lassoPoints.map((p) => `${p.x},${p.y}`).join(' L ')} Z`}
+						/>
+					</svg>
+				)}
 				{tooltip && (
-					<div className="node-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
-						{tooltip.lines.map((line, i) => <div key={i}>{line}</div>)}
+					<div
+						className="node-tooltip"
+						style={{ left: tooltip.x, top: tooltip.y }}
+					>
+						{tooltip.lines.map((line, i) => (
+							<div key={i}>{line}</div>
+						))}
 					</div>
 				)}
 			</div>
