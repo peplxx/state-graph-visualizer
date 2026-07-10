@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import type { SelectedNodeData } from './types/graph';
+import type { SelectionState } from './types/graph';
 import GraphViewer from './components/GraphViewer';
 import type { GraphViewerHandle } from './components/GraphViewer';
 import { Toolbar } from './components/Toolbar';
@@ -29,11 +29,11 @@ export default function App() {
 	const [sidebarTick, setSidebarTick] = useState(0);
 	const [sidebarOpen, setSidebarOpen] = useState(false);
 
-	const selectedNodeRef = useRef<SelectedNodeData | null>(null);
+	const selectionRef = useRef<SelectionState | null>(null);
 
-	const onNodeClickRef = useRef((node: SelectedNodeData | null) => {
-		selectedNodeRef.current = node;
-		if (node === null) {
+	const onSelectionChangeRef = useRef((selection: SelectionState | null) => {
+		selectionRef.current = selection;
+		if (selection === null) {
 			setSidebarOpen(false);
 		} else {
 			setSidebarOpen(true);
@@ -44,7 +44,7 @@ export default function App() {
 	const handleLoad = useRef((graph: GraphFile, name: string) => {
 		setGraphData(graph);
 		setFilename(name);
-		selectedNodeRef.current = null;
+		selectionRef.current = null;
 		setSidebarOpen(false);
 		setError(null);
 		if (graph.layout?.algorithm) {
@@ -138,7 +138,7 @@ export default function App() {
 								layout={layout}
 								showLoopbacks={showLoopbacks}
 								showNormalEdges={showNormalEdges}
-								onNodeClick={onNodeClickRef.current}
+								onSelectionChange={onSelectionChangeRef.current}
 								onStatsChange={setStats}
 							/>
 
@@ -161,10 +161,10 @@ export default function App() {
 				{/* ── Side panels ── */}
 				<aside className="side-panels">
 					{showLegend && <Legend />}
-					{sidebarOpen && selectedNodeRef.current && (
+					{sidebarOpen && selectionRef.current && (
 						<Sidebar
 							key={sidebarTick}
-							node={selectedNodeRef.current}
+							selection={selectionRef.current}
 							systemConfig={graphData?.system}
 							onClose={() => setSidebarOpen(false)}
 						/>

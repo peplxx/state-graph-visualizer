@@ -63,6 +63,20 @@ export interface SelectedNodeData {
 	outdegree: number;
 }
 
+export interface GroupConnectivity {
+	nodeCount: number;
+	internalEdges: number;
+	externalEdgesIn: number;
+	externalEdgesOut: number;
+	totalIndegree: number;
+	totalOutdegree: number;
+}
+
+export interface SelectionState {
+	nodes: SelectedNodeData[];
+	group?: GroupConnectivity;
+}
+
 export function toNodeTaskDisplay(task: NodeTaskYaml): NodeTaskDisplay {
 	return {
 		task: { c: task.c, d: task.d },

@@ -67,7 +67,9 @@ export const GraphFileYamlSchema = z
 	.object({
 		schemaVersion: z.coerce.number().int().positive().optional().default(1),
 		system: SystemConfigYamlSchema.optional(),
-		nodes: z.array(GraphNodeYamlSchema).min(1, 'At least one node is required'),
+		nodes: z
+			.array(GraphNodeYamlSchema)
+			.min(1, 'At least one node is required'),
 		layout: LayoutYamlSchema.optional()
 	})
 	.superRefine((data, ctx) => {

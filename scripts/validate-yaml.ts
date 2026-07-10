@@ -49,7 +49,9 @@ function validateFile(
 	if (!validate(raw)) {
 		console.error(`✗ ${filePath}`);
 		for (const err of (validate as any).errors ?? []) {
-			console.error(`  JSON Schema: ${err.instancePath || '/'} ${err.message}`);
+			console.error(
+				`  JSON Schema: ${err.instancePath || '/'} ${err.message}`
+			);
 		}
 		ok = false;
 	}
