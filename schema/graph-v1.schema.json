@@ -163,6 +163,68 @@
         "additionalProperties": false
       }
     },
+    "areas": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "nodes": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "label": {
+            "type": "string"
+          },
+          "labelPosition": {
+            "type": "string",
+            "enum": [
+              "top-left",
+              "top-center",
+              "top-right",
+              "center",
+              "bottom-left",
+              "bottom-center",
+              "bottom-right"
+            ]
+          },
+          "fillColor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "borderColor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "hatch": {
+            "type": "string",
+            "enum": [
+              "single",
+              "cross"
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "id",
+          "nodes"
+        ],
+        "additionalProperties": false
+      }
+    },
     "layout": {
       "type": "object",
       "properties": {
@@ -182,7 +244,8 @@
     }
   },
   "required": [
-    "nodes"
+    "nodes",
+    "areas"
   ],
   "additionalProperties": false
 }

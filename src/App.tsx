@@ -1,8 +1,8 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import type { SelectionState, GraphArea, LabelPosition } from './types/graph';
-import GraphViewer from './components/GraphViewer';
-import type { GraphViewerHandle, NodeColorOverride, AreaOverride } from './components/GraphViewer';
+import GraphViewer from './components/graphViewer';
+import type { GraphViewerHandle, NodeColorOverride, AreaOverride } from './components/graphViewer';
 import { Toolbar } from './components/Toolbar';
 import { Sidebar } from './components/Sidebar';
 import { FileLoader } from './components/FileLoader';

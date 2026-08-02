@@ -1,7 +1,7 @@
 import React from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import type { GraphArea } from '../types/graph';
-import type { AreaOverride } from './GraphViewer';
+import type { AreaOverride } from './graphViewer';
 
 interface Props {
 	areas: GraphArea[];
