@@ -103,8 +103,8 @@ export function buildBundleTrunkEntranceDelays(
 	return delays;
 }
 
-export function animateNodeEntrance(
-	nodeGroups: d3.Selection<SVGGElement, NodePos, SVGGElement, unknown>,
+export function animateNodeEntrance<P extends d3.BaseType>(
+	nodeGroups: d3.Selection<SVGGElement, NodePos, P, unknown>,
 	delays: Map<string, number>
 ) {
 	if (prefersReducedMotion()) {
@@ -122,8 +122,8 @@ export function animateNodeEntrance(
 		.style('opacity', 1);
 }
 
-export function animateStrokeDrawEntrance<T>(
-	paths: d3.Selection<SVGPathElement, T, SVGGElement, unknown>,
+export function animateStrokeDrawEntrance<T, P extends d3.BaseType>(
+	paths: d3.Selection<SVGPathElement, T, P, unknown>,
 	delays: Map<string, number>,
 	idOf: (datum: T) => string,
 	finishedDasharray?: string | null

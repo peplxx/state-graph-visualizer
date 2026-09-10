@@ -14,23 +14,18 @@ const LOOKAHEAD = 3;    // extra "future" steps always shown when path is short
 
 // ── Color palette (fill / stroke per task) ────────────────────────────────────
 
+// Task identity is carried by the labelled rows; keep execution neutral,
+// reserving the application accent for the selected time and deadlines.
 const TASK_COLORS = [
-	{ fill: '#DBEAFE', stroke: '#2563EB' },  // blue
-	{ fill: '#D1FAE5', stroke: '#059669' },  // emerald
-	{ fill: '#FDE68A', stroke: '#D97706' },  // amber
-	{ fill: '#F9A8D4', stroke: '#DB2777' },  // pink
-	{ fill: '#C4B5FD', stroke: '#7C3AED' },  // violet
-	{ fill: '#FCA5A5', stroke: '#DC2626' },  // red
-	{ fill: '#BAE6FD', stroke: '#0284C7' },  // sky
-	{ fill: '#A7F3D0', stroke: '#047857' },  // teal
+	{ fill: '#e5e5e5', stroke: '#6b6b6b' },
+	{ fill: '#f0f0f0', stroke: '#858585' },
 ];
-
-const ARROW_COLOR = '#1F2937';
-const DEADLINE_COLOR = '#D97706';
-const GRID_LIGHT = '#E5E7EB';
-const GRID_BORDER = '#9CA3AF';
-const FUTURE_BG = '#F3F4F6';   // background for "future" (lookahead) cells
-const FUTURE_GRID = '#EBEBEB'; // grid line color in future region
+const ARROW_COLOR = '#2c2c2c';
+const DEADLINE_COLOR = '#9b2e23';
+const GRID_LIGHT = '#e5e5e5';
+const GRID_BORDER = '#b5b5b5';
+const FUTURE_BG = '#f7f7f7';
+const FUTURE_GRID = '#ebebeb';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -149,7 +144,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 							y={ty(i)}
 							width={Math.max(nInt, 0) * CW}
 							height={CH}
-							fill={i % 2 === 0 ? '#FFFFFF' : '#F9FAFB'}
+							fill={i % 2 === 0 ? '#FFFFFF' : '#fafafa'}
 						/>
 					))}
 
@@ -160,7 +155,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 							y={0}
 							width={CW * 0.5}
 							height={nT * CH}
-							fill="rgba(59, 130, 246, 0.07)"
+							fill="rgba(155, 46, 35, 0.08)"
 						/>
 					)}
 
@@ -182,7 +177,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 							x1={LW}              y1={i * CH}
 							x2={LW + maxT * CW}  y2={i * CH}
 							stroke={i === 0 || i === nT ? GRID_BORDER : GRID_LIGHT}
-							strokeWidth={i === 0 || i === nT ? 1.5 : 1}
+							strokeWidth={i === 0 || i === nT ? 1 : 0.75}
 						/>
 					))}
 
@@ -190,7 +185,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 					<line
 						x1={LW} y1={0}
 						x2={LW} y2={nT * CH}
-						stroke={GRID_BORDER} strokeWidth={1.5}
+						stroke={GRID_BORDER} strokeWidth={1}
 					/>
 
 					{/* ── Task labels ── */}
@@ -203,7 +198,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 							dominantBaseline="middle"
 							fontSize={11}
 							fontWeight={600}
-							fill="#374151"
+							fill="#2c2c2c"
 							fontFamily="var(--font-mono)"
 						>
 							{getLabel(systemConfig.tasks, i)}
@@ -224,7 +219,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 									height={CH - VP * 2}
 									fill={fill}
 									stroke={stroke}
-									strokeWidth={1.5}
+									strokeWidth={1}
 									rx={2}
 								/>
 							);
@@ -245,7 +240,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 										<line
 											x1={x} y1={yBot}
 											x2={x} y2={yTop + 7}
-											stroke={ARROW_COLOR} strokeWidth={1.5}
+											stroke={ARROW_COLOR} strokeWidth={1}
 										/>
 										<polygon points={ptsUp(x, yTop)} fill={ARROW_COLOR} />
 									</g>
@@ -256,7 +251,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 									<line
 										x1={x} y1={yTop}
 										x2={x} y2={yBot - 7}
-										stroke={ARROW_COLOR} strokeWidth={1.5}
+										stroke={ARROW_COLOR} strokeWidth={1}
 									/>
 									<polygon points={ptsDn(x, yBot)} fill={ARROW_COLOR} />
 								</g>
@@ -276,14 +271,14 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 										<line
 											x1={x} y1={yTop + 6}
 											x2={x} y2={yBot}
-											stroke={DEADLINE_COLOR} strokeWidth={1.5}
+											stroke={DEADLINE_COLOR} strokeWidth={1}
 											strokeDasharray="3,2"
 										/>
 										<polygon points={ptsUp(x, yTop)} fill={DEADLINE_COLOR} />
 										<line
 											x1={x} y1={yTop + 6}
 											x2={x + 7} y2={yTop + 6}
-											stroke={DEADLINE_COLOR} strokeWidth={1.5}
+											stroke={DEADLINE_COLOR} strokeWidth={1}
 										/>
 									</g>
 								);
@@ -294,14 +289,14 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 					<line
 						x1={LW} y1={nT * CH}
 						x2={tx(maxT) + 8} y2={nT * CH}
-						stroke="#374151" strokeWidth={1.5}
+						stroke="#2c2c2c" strokeWidth={1}
 					/>
-					<polygon points={ptsRight(tx(maxT) + 14, nT * CH)} fill="#374151" />
+					<polygon points={ptsRight(tx(maxT) + 14, nT * CH)} fill="#2c2c2c" />
 					<text
 						x={tx(maxT) + 18} y={nT * CH + 1}
 						dominantBaseline="middle"
 						fontSize={11} fontStyle="italic"
-						fill="#374151" fontFamily="var(--font-ui)"
+						fill="#2c2c2c" fontFamily="var(--font-ui)"
 					>
 						t
 					</text>
@@ -316,7 +311,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 							Array.from(deadlineMap.values()).some(times => times.includes(t));
 						const tickColor = isDeadlineTick
 							? DEADLINE_COLOR
-							: isFuture ? '#C9CDD2' : '#374151';
+							: isFuture ? '#C9CDD2' : '#2c2c2c';
 						const labelColor = isDeadlineTick
 							? DEADLINE_COLOR
 							: isFuture ? '#C9CDD2' : '#6B7280';

@@ -26,7 +26,7 @@ export default function App() {
 		null
 	);
 	const [error, setError] = useState<string | null>(null);
-	const [showLegend, setShowLegend] = useState(true);
+	const [showLegend, setShowLegend] = useState(false);
 	const [showAreas, setShowAreas] = useState(true);
 	const [hiddenAreaIds, setHiddenAreaIds] = useState<Set<string>>(new Set());
 
@@ -448,7 +448,7 @@ export default function App() {
 				</main>
 
 				{/* ── Side panels ── */}
-				<aside className="side-panels">
+				<aside className="side-panels" style={{ display: showLegend || sidebarOpen || selectedArea || graphData?.areas?.length ? undefined : 'none' }}>
 					{showLegend && <Legend />}
 					{graphData?.areas && graphData.areas.length > 0 && (
 						<AreasList

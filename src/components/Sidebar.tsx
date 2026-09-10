@@ -604,6 +604,7 @@ export const Sidebar: React.FC<Props> = ({
 										<button
 											className={`sched-toggle-btn${showDeadlines ? ' is-active' : ''}`}
 											type="button"
+											aria-pressed={showDeadlines}
 											onClick={() => setShowDeadlines((v) => !v)}
 											title={showDeadlines ? 'Hide deadlines' : 'Show deadlines'}
 										>

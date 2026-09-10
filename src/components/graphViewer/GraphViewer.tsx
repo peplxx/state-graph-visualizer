@@ -96,6 +96,13 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 		const nodePosRef = useRef<Map<string, NodePos>>(new Map());
 		const indegreeMapRef = useRef<Map<string, number>>(new Map());
 		const outdegreeMapRef = useRef<Map<string, number>>(new Map());
+		const routeCacheRef = useRef<{
+			graph: GraphFile;
+			layout: LayoutName;
+			bundles: LoopBundle[];
+			paths: Map<GraphEdge, string>;
+		} | null>(null);
+
 		const graphDataRef = useRef(graphData);
 		graphDataRef.current = graphData;
 		const onSelectionChangeRef = useRef(onSelectionChange);
@@ -142,7 +149,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				if (!data) return null;
 
 				const nodes = [...ids]
-					.map((id) => {
+					.map((id): SelectedNodeData | null => {
 						const d = nodePosRef.current.get(id);
 						if (!d) return null;
 						return {
@@ -489,7 +496,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				.zoom<SVGSVGElement, unknown>()
 				.scaleExtent([0.02, 10])
 				.filter((event) => {
-					if (event.type === 'wheel' || event.button === 1) return true;
+					if (event.type === 'wheel' || event.button === 1)
+						return true;
 					if (spaceKeyRef.current) {
 						return (
 							!event.ctrlKey &&
@@ -990,7 +998,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 
 				const fill = ov?.fill ?? area.fillColor ?? '#F5F5F5';
 				const border = ov?.border ?? area.borderColor ?? '#374151';
-				const rawHatch = ov?.hatch !== undefined ? ov.hatch : area.hatch;
+				const rawHatch =
+					ov?.hatch !== undefined ? ov.hatch : area.hatch;
 				const effectiveHatch =
 					rawHatch === 'none' ? undefined : rawHatch;
 				const labelPos =
@@ -1081,7 +1090,50 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 			loopbackLayer.style('display', showLoopbacks ? null : 'none');
 			loopbackLayer.selectAll('*').remove();
 
-			const loopBundles = buildLoopBundles(loopEdges, nodeMap, isRadial);
+			// Visibility and animation toggles reuse geometry for this layout.
+			let routeCache = routeCacheRef.current;
+			if (
+				!routeCache ||
+				routeCache.graph !== graphData ||
+				routeCache.layout !== activeLayout
+			) {
+				const bundles = buildLoopBundles(
+					loopEdges,
+					nodeMap,
+					isRadial
+				);
+				const byEdge = new Map(
+					bundles.flatMap((bundle) =>
+						bundle.edges.map((edge) => [edgeId(edge), bundle] as const)
+					)
+				);
+				const paths = new Map<GraphEdge, string>();
+				loopEdges.forEach((edge, index) => {
+					const source = nodeMap.get(edge.source),
+						target = nodeMap.get(edge.target);
+					if (!source || !target) return;
+					const bundle = byEdge.get(edgeId(edge));
+					paths.set(
+						edge,
+						bundle
+							? routeBundleBranch(source, bundle, target)
+							: routeLoopEdge(
+									source,
+									target,
+									nodeMap.values(),
+									index
+								)
+					);
+				});
+				routeCache = {
+					graph: graphData,
+					layout: activeLayout,
+					bundles,
+					paths
+				};
+				routeCacheRef.current = routeCache;
+			}
+			const loopBundles = routeCache.bundles;
 			const bundleByEdge = new Map<string, LoopBundle>();
 			for (const bundle of loopBundles) {
 				for (const edge of bundle.edges) {
@@ -1124,16 +1176,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				.attr('marker-end', (edge) =>
 					bundleByEdge.has(edgeId(edge)) ? null : 'url(#arrow-loop)'
 				)
-				.attr('d', (edge, idx) => {
-					const src = nodeMap.get(edge.source);
-					const tgt = nodeMap.get(edge.target);
-					if (!src || !tgt) return '';
-					const bundle = bundleByEdge.get(edgeId(edge));
-					if (bundle) {
-						return routeBundleBranch(src, bundle, tgt);
-					}
-					return routeLoopEdge(src, tgt, nodeMap.values(), idx);
-				});
+				.attr('d', (edge) => routeCache.paths.get(edge) ?? '');
 
 			// ── Normal edges ───────────────────────────────────────────────
 			const edgesLayer = g.select('.edges-layer');
@@ -1241,7 +1284,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 						d.borderColor ??
 						'#1A1A1A'
 				)
-				.attr('stroke-width', (d) => (d.isInitial ? 3 : 1.8));
+				.attr('stroke-width', (d) => (d.isInitial ? 2 : 1.2));
 
 			// Rect shape
 			nodeGroups
@@ -1262,7 +1305,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 						d.borderColor ??
 						'#1A1A1A'
 				)
-				.attr('stroke-width', (d) => (d.isInitial ? 3 : 1.8));
+				.attr('stroke-width', (d) => (d.isInitial ? 2 : 1.2));
 
 			// Labels
 			nodeGroups.each(function (d) {
@@ -1311,10 +1354,8 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 					entranceDelays
 				);
 
-				animateStrokeDrawEntrance(
-					normalEdgePaths,
-					edgeDelays,
-					(edge) => edgeId(edge)
+				animateStrokeDrawEntrance(normalEdgePaths, edgeDelays, (edge) =>
+					edgeId(edge)
 				);
 				animateStrokeDrawEntrance(
 					arcBranchPaths,
