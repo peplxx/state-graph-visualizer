@@ -1334,6 +1334,51 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				});
 			});
 
+			// Keep the warning attached to the node in every layout and SVG export.
+			const deadlineBadges = nodeGroups
+				.filter((d) => d.tasks.some(({ task }) => task.c > task.d))
+				.append('g')
+				.attr('class', 'deadline-badge')
+				.attr('role', 'img')
+				.attr('aria-label', 'Deadline cannot be met')
+				.attr('transform', (d) => {
+					const x =
+						d.shape === 'circle'
+							? d.radius * Math.SQRT1_2
+							: d.width / 2;
+					const y =
+						d.shape === 'circle'
+							? -d.radius * Math.SQRT1_2
+							: -d.height / 2;
+					return `translate(${x},${y})`;
+				});
+
+			deadlineBadges
+				.append('title')
+				.text(
+					'Deadline cannot be met: remaining work exceeds time to deadline'
+				);
+			deadlineBadges
+				.append('circle')
+				.attr('r', 8)
+				.attr('fill', '#FFFFFF')
+				.attr('stroke', '#9b2e23')
+				.attr('stroke-width', 1.5);
+			deadlineBadges
+				.append('line')
+				.attr('x1', 0)
+				.attr('x2', 0)
+				.attr('y1', -3.5)
+				.attr('y2', 0.5)
+				.attr('stroke', '#9b2e23')
+				.attr('stroke-width', 1.7)
+				.attr('stroke-linecap', 'round');
+			deadlineBadges
+				.append('circle')
+				.attr('cy', 3.2)
+				.attr('r', 0.9)
+				.attr('fill', '#9b2e23');
+
 			if (shouldAnimateEntrance && entranceDelays) {
 				fitView(false);
 

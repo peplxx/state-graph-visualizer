@@ -12,13 +12,14 @@ const VP = 4; // vertical padding inside task row (exec block inset)
 const MIN_DISPLAY = 6; // minimum number of intervals to display
 const LOOKAHEAD = 3; // extra "future" steps always shown when path is short
 
-// ── Color palette (fill / stroke per task) ────────────────────────────────────
+// ── Color palette (fill / stroke per job) ────────────────────────────────────
 
 // Task identity is carried by the labelled rows; keep execution neutral,
-// reserving the application accent for the selected time and deadlines.
-const TASK_COLORS = [
-	{ fill: '#e5e5e5', stroke: '#6b6b6b' },
-	{ fill: '#f0f0f0', stroke: '#858585' }
+// reserving the application accent for deadlines and infeasible task states.
+const JOB_COLORS = [
+	{ fill: '#e8e8e8', stroke: '#858585' },
+	{ fill: '#d3d7db', stroke: '#757d85' },
+	{ fill: '#e0ddd8', stroke: '#857f77' }
 ];
 const ARROW_COLOR = '#2c2c2c';
 const DEADLINE_COLOR = '#9b2e23';
@@ -65,13 +66,34 @@ interface Props {
 	path: GraphNode[];
 	systemConfig: SystemConfig;
 	showDeadlines: boolean;
+	showRemainingWork?: boolean;
 }
 
 export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
-	({ path, systemConfig, showDeadlines }, ref) => {
+	({ path, systemConfig, showDeadlines, showRemainingWork = false }, ref) => {
+		const estimatePatternId = `deadline-miss-${React.useId().replace(/:/g, '')}`;
 		const nT = systemConfig.tasks.length;
 		const nInt = path.length - 1; // actual execution intervals
 		const nTP = path.length; // actual time points
+		const scrollRef = React.useRef<HTMLDivElement>(null);
+		const [viewportWidth, setViewportWidth] = React.useState(0);
+		const hasDiagram = nT > 0 && nTP > 0;
+
+		React.useLayoutEffect(() => {
+			const element = scrollRef.current;
+			if (!element) return;
+			const style = getComputedStyle(element);
+			setViewportWidth(
+				element.clientWidth -
+					parseFloat(style.paddingLeft) -
+					parseFloat(style.paddingRight)
+			);
+			const observer = new ResizeObserver(([entry]) => {
+				setViewportWidth(entry.contentRect.width);
+			});
+			observer.observe(element);
+			return () => observer.disconnect();
+		}, [hasDiagram]);
 
 		// Minimum display columns: always extend at least to MIN_DISPLAY,
 		// and always show LOOKAHEAD future steps beyond actual path.
@@ -87,6 +109,26 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 			const nextC = path[t + 1].tasks[taskIdx]?.task.c ?? 0;
 			return prevC > nextC;
 		};
+
+		// Track arrivals along this path: node release flags may describe another
+		// incoming edge. A reset of remaining work/deadline starts a new job.
+		const jobColors = Array.from({ length: nT }, (_, i) => {
+			let job = -1;
+			return path.map((node, t) => {
+				const current = node.tasks[i]?.task;
+				const previous = path[t - 1]?.tasks[i]?.task;
+				if (
+					current &&
+					current.c > 0 &&
+					(!previous ||
+						previous.c === 0 ||
+						current.c > previous.c ||
+						current.d > Math.max(0, previous.d - 1))
+				)
+					job++;
+				return JOB_COLORS[Math.max(0, job) % JOB_COLORS.length];
+			});
+		});
 
 		// ── Deadline markers ──────────────────────────────────────────────────
 
@@ -107,22 +149,37 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 		}
 
 		// SVG must be wide enough to show deadlines that fall beyond displayCols
-		let maxT = displayCols;
+		let maxT = Math.max(
+			displayCols,
+			Math.floor((viewportWidth - LW - RPAD - 14) / CW)
+		);
 		for (const times of deadlineMap.values())
 			for (const t of times) if (t > maxT) maxT = t;
 
+		// Show an optimistic continuous-execution estimate for the selected state.
+		const workEstimates = path[nInt].tasks.flatMap(
+			({ task: { c, d } }, i) =>
+				i < nT && c > 0 && (showRemainingWork || c > d)
+					? [{ i, t: nInt, c, d }]
+					: []
+		);
+		for (const { t, c } of workEstimates)
+			maxT = Math.max(maxT, Math.ceil(t + c));
+		const rowH = CH;
+
 		// ── SVG geometry ──────────────────────────────────────────────────────
 
-		const svgW = LW + maxT * CW + RPAD + 14;
-		const svgH = nT * CH + AXH;
+		const svgW = Math.max(viewportWidth, LW + maxT * CW + RPAD + 14);
+		const gridRight = svgW - RPAD - 14;
+		const svgH = nT * rowH + AXH;
 
-		const ty = (i: number) => i * CH;
+		const ty = (i: number) => i * rowH;
 		const tx = (t: number) => LW + t * CW;
 
 		// ── Render ────────────────────────────────────────────────────────────
 
 		return (
-			<div className="sched-diagram-scroll">
+			<div ref={scrollRef} className="sched-diagram-scroll">
 				<svg
 					ref={ref}
 					width={svgW}
@@ -130,16 +187,31 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 					style={{ display: 'block', overflow: 'visible' }}
 					aria-label="Scheduling diagram"
 				>
+					<defs>
+						<pattern
+							id={estimatePatternId}
+							width={6}
+							height={6}
+							patternUnits="userSpaceOnUse"
+						>
+							<path
+								d="M-1,1 L1,-1 M0,6 L6,0 M5,7 L7,5"
+								stroke="#858585"
+								strokeWidth={0.7}
+								strokeOpacity={0.6}
+							/>
+						</pattern>
+					</defs>
 					{/* White background for clean export */}
 					<rect x={0} y={0} width={svgW} height={svgH} fill="white" />
 
 					{/* ── Future (lookahead) region background ── */}
-					{displayCols > nInt && (
+					{maxT > nInt && (
 						<rect
 							x={tx(nInt)}
 							y={0}
-							width={(displayCols - nInt) * CW}
-							height={nT * CH}
+							width={gridRight - tx(nInt)}
+							height={nT * rowH}
 							fill={FUTURE_BG}
 						/>
 					)}
@@ -151,21 +223,10 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 							x={LW}
 							y={ty(i)}
 							width={Math.max(nInt, 0) * CW}
-							height={CH}
+							height={rowH}
 							fill={i % 2 === 0 ? '#FFFFFF' : '#fafafa'}
 						/>
 					))}
-
-					{/* Highlight column of selected state (last path node) */}
-					{nInt > 0 && (
-						<rect
-							x={tx(nInt) - CW * 0.5}
-							y={0}
-							width={CW * 0.5}
-							height={nT * CH}
-							fill="rgba(155, 46, 35, 0.08)"
-						/>
-					)}
 
 					{/* ── Vertical grid lines ── */}
 					{Array.from({ length: maxT + 1 }, (_, t) => (
@@ -174,7 +235,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 							x1={tx(t)}
 							y1={0}
 							x2={tx(t)}
-							y2={nT * CH}
+							y2={nT * rowH}
 							stroke={t <= nInt ? GRID_LIGHT : FUTURE_GRID}
 							strokeWidth={1}
 						/>
@@ -185,9 +246,9 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 						<line
 							key={`hg-${i}`}
 							x1={LW}
-							y1={i * CH}
-							x2={LW + maxT * CW}
-							y2={i * CH}
+							y1={i * rowH}
+							x2={gridRight}
+							y2={i * rowH}
 							stroke={
 								i === 0 || i === nT ? GRID_BORDER : GRID_LIGHT
 							}
@@ -200,7 +261,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 						x1={LW}
 						y1={0}
 						x2={LW}
-						y2={nT * CH}
+						y2={nT * rowH}
 						stroke={GRID_BORDER}
 						strokeWidth={1}
 					/>
@@ -210,7 +271,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 						<text
 							key={`lbl-${i}`}
 							x={LW - 7}
-							y={ty(i) + CH / 2}
+							y={ty(i) + rowH / 2}
 							textAnchor="end"
 							dominantBaseline="middle"
 							fontSize={11}
@@ -226,15 +287,14 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 					{Array.from({ length: nT }, (_, i) =>
 						Array.from({ length: nInt }, (_, t) => {
 							if (!executes(i, t)) return null;
-							const { fill, stroke } =
-								TASK_COLORS[i % TASK_COLORS.length];
+							const { fill, stroke } = jobColors[i][t];
 							return (
 								<rect
 									key={`ex-${i}-${t}`}
 									x={tx(t) + 1}
 									y={ty(i) + VP}
 									width={CW - 2}
-									height={CH - VP * 2}
+									height={rowH - VP * 2}
 									fill={fill}
 									stroke={stroke}
 									strokeWidth={1}
@@ -244,6 +304,84 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 						})
 					)}
 
+					{/* The hatched estimate is not a prediction of the GFP schedule. */}
+					{workEstimates.map(({ i, t, c, d }) => {
+						const available = Math.min(c, Math.max(0, d));
+						const missed = c > d;
+						const deadline = t + available;
+						const label = `${getLabel(systemConfig.tasks, i)}: ${c} remaining, ${d} time available${missed ? `; short by ${c - d}` : ''}`;
+						return (
+							<g
+								key={`miss-${i}`}
+								aria-label={label}
+								data-deadline-miss={
+									missed ? `${i}:${t}` : undefined
+								}
+								data-work-estimate={`${i}:${t}`}
+							>
+								<title>
+									{`${label}. Estimate assumes continuous execution.`}
+								</title>
+								{/* Unallocated work is deliberately fainter than actual execution. */}
+								{available > 0 && (
+									<g>
+										<rect
+											x={tx(t)}
+											y={ty(i) + VP}
+											width={available * CW}
+											height={rowH - VP * 2}
+											fill={jobColors[i][t].fill}
+											fillOpacity={0.35}
+										/>
+										<rect
+											data-remaining-work="true"
+											x={tx(t)}
+											y={ty(i) + VP}
+											width={available * CW}
+											height={rowH - VP * 2}
+											fill={`url(#${estimatePatternId})`}
+											stroke={jobColors[i][t].stroke}
+											strokeWidth={0.75}
+											opacity={0.4}
+										/>
+									</g>
+								)}
+								{missed && (
+									<>
+										<rect
+											data-overrun="true"
+											x={tx(deadline)}
+											y={ty(i) + VP}
+											width={(c - available) * CW}
+											height={rowH - VP * 2}
+											fill={DEADLINE_COLOR}
+											fillOpacity={0.18}
+										/>
+										<rect
+											x={tx(deadline)}
+											y={ty(i) + VP}
+											width={(c - available) * CW}
+											height={rowH - VP * 2}
+											fill={`url(#${estimatePatternId})`}
+											stroke={DEADLINE_COLOR}
+											strokeOpacity={0.5}
+											strokeWidth={0.75}
+										/>
+
+										<line
+											x1={tx(deadline)}
+											y1={ty(i) + 2}
+											x2={tx(deadline)}
+											y2={ty(i) + rowH - 2}
+											stroke={DEADLINE_COLOR}
+											strokeWidth={1.5}
+										/>
+									</>
+								)}
+							</g>
+						);
+					})}
+
 					{/* ── Release & completion arrows ── */}
 					{Array.from({ length: nT }, (_, i) =>
 						Array.from({ length: nTP }, (_, t) => {
@@ -251,7 +389,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 							if (!rel || rel === 'none') return null;
 							const x = tx(t);
 							const yTop = ty(i) + 1;
-							const yBot = ty(i) + CH - 1;
+							const yBot = ty(i) + rowH - 1;
 							if (rel === 'up') {
 								return (
 									<g key={`up-${i}-${t}`}>
@@ -294,9 +432,19 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 						Array.from(deadlineMap.entries()).flatMap(
 							([i, times]) =>
 								times.map((absT, ki) => {
+									if (
+										workEstimates.some(
+											(miss) =>
+												miss.c > miss.d &&
+												miss.i === i &&
+												absT ===
+													miss.t + Math.max(0, miss.d)
+										)
+									)
+										return null;
 									const x = tx(absT);
 									const yTop = ty(i) + 2;
-									const yBot = ty(i) + CH - 2;
+									const yBot = ty(i) + rowH - 2;
 									return (
 										<g key={`dl-${i}-${absT}-${ki}`}>
 											<line
@@ -312,14 +460,6 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 												points={ptsUp(x, yTop)}
 												fill={DEADLINE_COLOR}
 											/>
-											<line
-												x1={x}
-												y1={yTop + 6}
-												x2={x + 7}
-												y2={yTop + 6}
-												stroke={DEADLINE_COLOR}
-												strokeWidth={1}
-											/>
 										</g>
 									);
 								})
@@ -328,19 +468,19 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 					{/* ── Bottom axis ── */}
 					<line
 						x1={LW}
-						y1={nT * CH}
-						x2={tx(maxT) + 8}
-						y2={nT * CH}
+						y1={nT * rowH}
+						x2={gridRight + 8}
+						y2={nT * rowH}
 						stroke="#2c2c2c"
 						strokeWidth={1}
 					/>
 					<polygon
-						points={ptsRight(tx(maxT) + 14, nT * CH)}
+						points={ptsRight(gridRight + 14, nT * rowH)}
 						fill="#2c2c2c"
 					/>
 					<text
-						x={tx(maxT) + 18}
-						y={nT * CH + 1}
+						x={gridRight + 18}
+						y={nT * rowH + 1}
 						dominantBaseline="middle"
 						fontSize={11}
 						fontStyle="italic"
@@ -354,7 +494,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 					{Array.from({ length: maxT }, (_, idx) => {
 						const t = idx + 1; // labels: 1, 2, 3, …
 						const x = tx(t);
-						const y = nT * CH;
+						const y = nT * rowH;
 						const isFuture = t > nInt;
 						const isDeadlineTick =
 							showDeadlines &&
@@ -416,7 +556,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 							x1={tx(nInt)}
 							y1={0}
 							x2={tx(nInt)}
-							y2={nT * CH}
+							y2={nT * rowH}
 							stroke="#C9CDD2"
 							strokeWidth={1}
 							strokeDasharray="4,3"

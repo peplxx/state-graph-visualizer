@@ -16,6 +16,8 @@ import {
 	Layers,
 	Trash2,
 	Timer,
+	Hourglass,
+	ChevronRight,
 	Download
 } from 'lucide-react';
 import { SchedulingDiagram } from './SchedulingDiagram';
@@ -71,6 +73,8 @@ interface AreaOverride {
 }
 
 interface Props {
+	appearanceOpen: boolean;
+	onAppearanceOpenChange: (open: boolean) => void;
 	// Node selection mode
 	selection?: SelectionState;
 	systemConfig?: {
@@ -348,9 +352,46 @@ const LabelPositionPicker: React.FC<{
 	</div>
 );
 
+function AppearanceSection({
+	open,
+	onOpenChange,
+	children
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	children: React.ReactNode;
+}) {
+	const id = React.useId();
+	return (
+		<>
+			<h4 className="section-title">
+				<button
+					type="button"
+					className="appearance-toggle"
+					aria-expanded={open}
+					aria-controls={id}
+					onClick={() => onOpenChange(!open)}
+				>
+					<ChevronRight
+						size={13}
+						aria-hidden="true"
+						className={open ? 'is-open' : undefined}
+					/>
+					Appearance
+				</button>
+			</h4>
+			<div id={id} hidden={!open}>
+				{open && <div className="appearance-section">{children}</div>}
+			</div>
+		</>
+	);
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export const Sidebar: React.FC<Props> = ({
+	appearanceOpen,
+	onAppearanceOpenChange,
 	selection,
 	systemConfig,
 	graphData,
@@ -374,7 +415,8 @@ export const Sidebar: React.FC<Props> = ({
 	const [labelDraft, setLabelDraft] = React.useState(
 		selectedArea?.label ?? ''
 	);
-	const [showDeadlines, setShowDeadlines] = React.useState(false);
+	const [showDeadlines, setShowDeadlines] = React.useState(true);
+	const [showRemainingWork, setShowRemainingWork] = React.useState(false);
 
 	// Derive node/group before early returns so hooks below are unconditional.
 	const _selNodes = selection?.nodes ?? [];
@@ -430,7 +472,14 @@ export const Sidebar: React.FC<Props> = ({
 			<aside className="sidebar">
 				<div className="sidebar-header">
 					<h3>Area</h3>
-					<div style={{ display: 'flex', gap: 4 }}>
+					<div
+						style={{
+							display: 'flex',
+							gap: 4,
+							flexWrap: 'wrap',
+							justifyContent: 'flex-end'
+						}}
+					>
 						{onDeleteArea && (
 							<button
 								className="sidebar-close sidebar-delete"
@@ -499,8 +548,10 @@ export const Sidebar: React.FC<Props> = ({
 
 					{onAreaColorChange && (
 						<>
-							<h4 className="section-title">Appearance</h4>
-							<div className="appearance-section">
+							<AppearanceSection
+								open={appearanceOpen}
+								onOpenChange={onAppearanceOpenChange}
+							>
 								<ColorRow
 									label="Fill"
 									palette={FILL_PALETTE}
@@ -545,7 +596,7 @@ export const Sidebar: React.FC<Props> = ({
 										)
 									}
 								/>
-							</div>
+							</AppearanceSection>
 						</>
 					)}
 				</div>
@@ -655,8 +706,10 @@ export const Sidebar: React.FC<Props> = ({
 
 						{onColorChange && (
 							<>
-								<h4 className="section-title">Appearance</h4>
-								<div className="appearance-section">
+								<AppearanceSection
+									open={appearanceOpen}
+									onOpenChange={onAppearanceOpenChange}
+								>
 									<ColorRow
 										label="Fill"
 										palette={FILL_PALETTE}
@@ -719,7 +772,7 @@ export const Sidebar: React.FC<Props> = ({
 											)
 										}
 									/>
-								</div>
+								</AppearanceSection>
 							</>
 						)}
 
@@ -735,7 +788,19 @@ export const Sidebar: React.FC<Props> = ({
 							</thead>
 							<tbody>
 								{node.tasks.map((t, i) => (
-									<tr key={i}>
+									<tr
+										key={i}
+										className={
+											t.task.c > t.task.d
+												? 'task-deadline-miss'
+												: undefined
+										}
+										title={
+											t.task.c > t.task.d
+												? `Deadline cannot be met: ${t.task.c} remaining, ${t.task.d} time available`
+												: undefined
+										}
+									>
 										<td>
 											τ<sub>{i + 1}</sub>
 											{systemConfig?.tasks[i]?.name
@@ -767,7 +832,7 @@ export const Sidebar: React.FC<Props> = ({
 									>
 										Schedule
 									</h4>
-									<div style={{ display: 'flex', gap: 4 }}>
+									<div className="sched-controls">
 										<button
 											className={`sched-toggle-btn${showDeadlines ? ' is-active' : ''}`}
 											type="button"
@@ -783,6 +848,22 @@ export const Sidebar: React.FC<Props> = ({
 										>
 											<Timer size={11} />
 											Deadlines
+										</button>
+										<button
+											type="button"
+											className={`sched-toggle-btn${showRemainingWork ? ' is-active' : ''}`}
+											aria-pressed={showRemainingWork}
+											onClick={() =>
+												setShowRemainingWork((v) => !v)
+											}
+											title={
+												showRemainingWork
+													? 'Hide remaining work (deadline violations stay visible)'
+													: 'Show remaining work assuming continuous execution'
+											}
+										>
+											<Hourglass size={11} />
+											Remaining work
 										</button>
 										{nodePath.length >= 2 && (
 											<button
@@ -809,6 +890,7 @@ export const Sidebar: React.FC<Props> = ({
 										path={nodePath}
 										systemConfig={systemConfig}
 										showDeadlines={showDeadlines}
+										showRemainingWork={showRemainingWork}
 									/>
 								)}
 							</>
@@ -903,8 +985,10 @@ export const Sidebar: React.FC<Props> = ({
 
 						{onColorChange && (
 							<>
-								<h4 className="section-title">Appearance</h4>
-								<div className="appearance-section">
+								<AppearanceSection
+									open={appearanceOpen}
+									onOpenChange={onAppearanceOpenChange}
+								>
 									<ColorRow
 										label="Fill"
 										palette={FILL_PALETTE}
@@ -967,7 +1051,7 @@ export const Sidebar: React.FC<Props> = ({
 											)
 										}
 									/>
-								</div>
+								</AppearanceSection>
 							</>
 						)}
 

@@ -9,6 +9,7 @@ import type {
 } from './components/graphViewer';
 import { Toolbar } from './components/Toolbar';
 import { Sidebar } from './components/Sidebar';
+import { ResizableSidePanel } from './components/ResizableSidePanel';
 import { FileLoader } from './components/FileLoader';
 import { Legend } from './components/Legend';
 import { AreasList } from './components/AreasList';
@@ -296,6 +297,7 @@ export default function App() {
 	// Sidebar state
 	const [sidebarTick, setSidebarTick] = useState(0);
 	const [sidebarOpen, setSidebarOpen] = useState(false);
+	const [appearanceOpen, setAppearanceOpen] = useState(false);
 
 	const selectionRef = useRef<SelectionState | null>(null);
 
@@ -483,17 +485,13 @@ export default function App() {
 				</main>
 
 				{/* ── Side panels ── */}
-				<aside
-					className="side-panels"
-					style={{
-						display:
-							showLegend ||
-							sidebarOpen ||
-							selectedArea ||
-							graphData?.areas?.length
-								? undefined
-								: 'none'
-					}}
+				<ResizableSidePanel
+					visible={Boolean(
+						showLegend ||
+						sidebarOpen ||
+						selectedArea ||
+						graphData?.areas?.length
+					)}
 				>
 					{showLegend && <Legend />}
 					{graphData?.areas && graphData.areas.length > 0 && (
@@ -508,6 +506,8 @@ export default function App() {
 					)}
 					{(sidebarOpen && selectionRef.current) || selectedArea ? (
 						<Sidebar
+							appearanceOpen={appearanceOpen}
+							onAppearanceOpenChange={setAppearanceOpen}
 							key={
 								selectedArea
 									? `area-${selectedArea.id}`
@@ -560,7 +560,7 @@ export default function App() {
 							}
 						/>
 					) : null}
-				</aside>
+				</ResizableSidePanel>
 			</div>
 		</div>
 	);
