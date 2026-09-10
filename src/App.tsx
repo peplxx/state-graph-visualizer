@@ -2,7 +2,11 @@ import React, { useCallback, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import type { SelectionState, GraphArea, LabelPosition } from './types/graph';
 import GraphViewer from './components/graphViewer';
-import type { GraphViewerHandle, NodeColorOverride, AreaOverride } from './components/graphViewer';
+import type {
+	GraphViewerHandle,
+	NodeColorOverride,
+	AreaOverride
+} from './components/graphViewer';
 import { Toolbar } from './components/Toolbar';
 import { Sidebar } from './components/Sidebar';
 import { FileLoader } from './components/FileLoader';
@@ -68,7 +72,9 @@ export default function App() {
 	);
 
 	// Area overrides and selection
-	const [areaOverrides, setAreaOverrides] = useState<Map<string, AreaOverride>>(new Map());
+	const [areaOverrides, setAreaOverrides] = useState<
+		Map<string, AreaOverride>
+	>(new Map());
 	const [selectedArea, setSelectedArea] = useState<GraphArea | null>(null);
 
 	const handleAreaColorChange = useCallback(
@@ -126,19 +132,26 @@ export default function App() {
 					const ov = next.get(area.id);
 					const currentNodes = ov?.nodes ?? area.nodeIds;
 					if (currentNodes.includes(nodeId)) {
-						const updated = currentNodes.filter((id) => id !== nodeId);
+						const updated = currentNodes.filter(
+							(id) => id !== nodeId
+						);
 						if (updated.length > 0 || ov) {
 							next.set(area.id, { ...ov, nodes: updated });
 						}
 					}
 				}
 				if (areaId) {
-					const targetArea = graphData.areas?.find((a) => a.id === areaId);
+					const targetArea = graphData.areas?.find(
+						(a) => a.id === areaId
+					);
 					if (targetArea) {
 						const ov = next.get(areaId);
 						const currentNodes = ov?.nodes ?? targetArea.nodeIds;
 						if (!currentNodes.includes(nodeId)) {
-							next.set(areaId, { ...ov, nodes: [...currentNodes, nodeId] });
+							next.set(areaId, {
+								...ov,
+								nodes: [...currentNodes, nodeId]
+							});
 						}
 					}
 				}
@@ -157,20 +170,26 @@ export default function App() {
 				for (const area of graphData.areas ?? []) {
 					const ov = next.get(area.id);
 					const currentNodes = ov?.nodes ?? area.nodeIds;
-					const updated = currentNodes.filter((id) => !nodeIds.includes(id));
+					const updated = currentNodes.filter(
+						(id) => !nodeIds.includes(id)
+					);
 					if (updated.length !== currentNodes.length || ov) {
 						next.set(area.id, { ...ov, nodes: updated });
 					}
 				}
 				// Add all to target area
 				if (areaId) {
-					const targetArea = graphData.areas?.find((a) => a.id === areaId);
+					const targetArea = graphData.areas?.find(
+						(a) => a.id === areaId
+					);
 					if (targetArea) {
 						const ov = next.get(areaId);
 						const currentNodes = ov?.nodes ?? targetArea.nodeIds;
 						const merged = [
-							...currentNodes.filter((id) => !nodeIds.includes(id)),
-							...nodeIds,
+							...currentNodes.filter(
+								(id) => !nodeIds.includes(id)
+							),
+							...nodeIds
 						];
 						next.set(areaId, { ...ov, nodes: merged });
 					}
@@ -181,16 +200,13 @@ export default function App() {
 		[graphData]
 	);
 
-	const handleAreaSelect = useCallback(
-		(area: GraphArea | null) => {
-			setSelectedArea(area);
-			if (area) {
-				setSidebarOpen(false);
-				viewerRef.current?.clearSelection();
-			}
-		},
-		[]
-	);
+	const handleAreaSelect = useCallback((area: GraphArea | null) => {
+		setSelectedArea(area);
+		if (area) {
+			setSidebarOpen(false);
+			viewerRef.current?.clearSelection();
+		}
+	}, []);
 
 	const handleAreaLabelChange = useCallback(
 		(label: string) => {
@@ -201,7 +217,9 @@ export default function App() {
 					? {
 							...prev,
 							areas: prev.areas?.map((a) =>
-								a.id === id ? { ...a, label: label || undefined } : a
+								a.id === id
+									? { ...a, label: label || undefined }
+									: a
 							)
 						}
 					: prev
@@ -217,7 +235,9 @@ export default function App() {
 		if (!selectedArea) return;
 		const id = selectedArea.id;
 		setGraphData((prev) =>
-			prev ? { ...prev, areas: prev.areas?.filter((a) => a.id !== id) } : prev
+			prev
+				? { ...prev, areas: prev.areas?.filter((a) => a.id !== id) }
+				: prev
 		);
 		setAreaOverrides((prev) => {
 			const next = new Map(prev);
@@ -227,23 +247,34 @@ export default function App() {
 		setSelectedArea(null);
 	}, [selectedArea]);
 
-	const handleCreateArea = useCallback((nodeIds: string[]) => {
-		if (!graphData) return;
-		const existingIds = new Set(graphData.areas?.map((a) => a.id) ?? []);
-		let n = (graphData.areas?.length ?? 0) + 1;
-		let newId = `area-${n}`;
-		while (existingIds.has(newId)) {
-			n += 1;
-			newId = `area-${n}`;
-		}
-		const newArea = { id: newId, nodeIds, labelPosition: 'top-left' as const };
-		setGraphData((prev) =>
-			prev ? { ...prev, areas: [...(prev.areas ?? []), newArea] } : prev
-		);
-		setSelectedArea(newArea);
-		setSidebarOpen(false);
-		viewerRef.current?.clearSelection();
-	}, [graphData]);
+	const handleCreateArea = useCallback(
+		(nodeIds: string[]) => {
+			if (!graphData) return;
+			const existingIds = new Set(
+				graphData.areas?.map((a) => a.id) ?? []
+			);
+			let n = (graphData.areas?.length ?? 0) + 1;
+			let newId = `area-${n}`;
+			while (existingIds.has(newId)) {
+				n += 1;
+				newId = `area-${n}`;
+			}
+			const newArea = {
+				id: newId,
+				nodeIds,
+				labelPosition: 'top-left' as const
+			};
+			setGraphData((prev) =>
+				prev
+					? { ...prev, areas: [...(prev.areas ?? []), newArea] }
+					: prev
+			);
+			setSelectedArea(newArea);
+			setSidebarOpen(false);
+			viewerRef.current?.clearSelection();
+		},
+		[graphData]
+	);
 
 	const handleSelectAreaNodes = useCallback(() => {
 		if (!selectedArea) return;
@@ -327,7 +358,11 @@ export default function App() {
 						onClick={() => setEnableAnimation((v) => !v)}
 						title="Enable or disable entrance animation"
 					>
-						<Sparkles size={14} strokeWidth={2} aria-hidden="true" />
+						<Sparkles
+							size={14}
+							strokeWidth={2}
+							aria-hidden="true"
+						/>
 						Animation
 					</button>
 					<button
@@ -448,7 +483,18 @@ export default function App() {
 				</main>
 
 				{/* ── Side panels ── */}
-				<aside className="side-panels" style={{ display: showLegend || sidebarOpen || selectedArea || graphData?.areas?.length ? undefined : 'none' }}>
+				<aside
+					className="side-panels"
+					style={{
+						display:
+							showLegend ||
+							sidebarOpen ||
+							selectedArea ||
+							graphData?.areas?.length
+								? undefined
+								: 'none'
+					}}
+				>
 					{showLegend && <Legend />}
 					{graphData?.areas && graphData.areas.length > 0 && (
 						<AreasList
@@ -462,7 +508,11 @@ export default function App() {
 					)}
 					{(sidebarOpen && selectionRef.current) || selectedArea ? (
 						<Sidebar
-							key={selectedArea ? `area-${selectedArea.id}` : `node-${sidebarTick}`}
+							key={
+								selectedArea
+									? `area-${selectedArea.id}`
+									: `node-${sidebarTick}`
+							}
 							selection={selectionRef.current ?? undefined}
 							systemConfig={graphData?.system}
 							graphData={graphData ?? undefined}
@@ -474,27 +524,40 @@ export default function App() {
 							colorOverrides={colorOverrides}
 							onColorChange={handleColorChange}
 							selectedArea={selectedArea ?? undefined}
-							areaOverride={selectedArea ? areaOverrides.get(selectedArea.id) : undefined}
+							areaOverride={
+								selectedArea
+									? areaOverrides.get(selectedArea.id)
+									: undefined
+							}
 							allAreas={graphData?.areas}
 							onAreaColorChange={handleAreaColorChange}
-							onAreaLabelPositionChange={handleAreaLabelPositionChange}
-							onSelectAreaNodes={selectedArea ? handleSelectAreaNodes : undefined}
+							onAreaLabelPositionChange={
+								handleAreaLabelPositionChange
+							}
+							onSelectAreaNodes={
+								selectedArea ? handleSelectAreaNodes : undefined
+							}
 							onAssignNodeToArea={
 								selectionRef.current?.nodes.length === 1
-									? (areaId) => handleAssignNodeToArea(
-										selectionRef.current!.nodes[0].id,
-										areaId
-									)
+									? (areaId) =>
+											handleAssignNodeToArea(
+												selectionRef.current!.nodes[0]
+													.id,
+												areaId
+											)
 									: undefined
 							}
 							onCreateArea={handleCreateArea}
 							onAssignGroupToArea={
-								selectionRef.current && selectionRef.current.nodes.length > 1
+								selectionRef.current &&
+								selectionRef.current.nodes.length > 1
 									? handleAssignGroupToArea
 									: undefined
 							}
 							onAreaLabelChange={handleAreaLabelChange}
-							onDeleteArea={selectedArea ? handleDeleteArea : undefined}
+							onDeleteArea={
+								selectedArea ? handleDeleteArea : undefined
+							}
 						/>
 					) : null}
 				</aside>

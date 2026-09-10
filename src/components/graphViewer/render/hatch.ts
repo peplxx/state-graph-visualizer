@@ -137,7 +137,10 @@ export function buildAreaHatchOverlay(
 	hatchLayer.select(`.area-hatch[data-area-id="${areaId}"]`).remove();
 
 	// Create clip path from the hull outline
-	defs.append('clipPath').attr('id', clipId).append('path').attr('d', hullPath);
+	defs.append('clipPath')
+		.attr('id', clipId)
+		.append('path')
+		.attr('d', hullPath);
 
 	// Create the hatch group — lines inside will be clipped to hull
 	const group = hatchLayer

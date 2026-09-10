@@ -3,14 +3,14 @@ import type { GraphNode, SystemConfig } from '../types/graph';
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 
-const CW = 32;          // cell width (px per time unit)
-const CH = 30;          // cell height per task row
-const LW = 46;          // left label column width
-const AXH = 24;         // bottom axis area height
-const RPAD = 26;        // right padding after last time mark
-const VP = 4;           // vertical padding inside task row (exec block inset)
-const MIN_DISPLAY = 6;  // minimum number of intervals to display
-const LOOKAHEAD = 3;    // extra "future" steps always shown when path is short
+const CW = 32; // cell width (px per time unit)
+const CH = 30; // cell height per task row
+const LW = 46; // left label column width
+const AXH = 24; // bottom axis area height
+const RPAD = 26; // right padding after last time mark
+const VP = 4; // vertical padding inside task row (exec block inset)
+const MIN_DISPLAY = 6; // minimum number of intervals to display
+const LOOKAHEAD = 3; // extra "future" steps always shown when path is short
 
 // ── Color palette (fill / stroke per task) ────────────────────────────────────
 
@@ -18,7 +18,7 @@ const LOOKAHEAD = 3;    // extra "future" steps always shown when path is short
 // reserving the application accent for the selected time and deadlines.
 const TASK_COLORS = [
 	{ fill: '#e5e5e5', stroke: '#6b6b6b' },
-	{ fill: '#f0f0f0', stroke: '#858585' },
+	{ fill: '#f0f0f0', stroke: '#858585' }
 ];
 const ARROW_COLOR = '#2c2c2c';
 const DEADLINE_COLOR = '#9b2e23';
@@ -30,8 +30,16 @@ const FUTURE_GRID = '#ebebeb';
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const SUBS: Record<number, string> = {
-	0: '₀', 1: '₁', 2: '₂', 3: '₃', 4: '₄',
-	5: '₅', 6: '₆', 7: '₇', 8: '₈', 9: '₉',
+	0: '₀',
+	1: '₁',
+	2: '₂',
+	3: '₃',
+	4: '₄',
+	5: '₅',
+	6: '₆',
+	7: '₇',
+	8: '₈',
+	9: '₉'
 };
 
 function getLabel(tasks: SystemConfig['tasks'], idx: number): string {
@@ -62,8 +70,8 @@ interface Props {
 export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 	({ path, systemConfig, showDeadlines }, ref) => {
 		const nT = systemConfig.tasks.length;
-		const nInt = path.length - 1;               // actual execution intervals
-		const nTP = path.length;                    // actual time points
+		const nInt = path.length - 1; // actual execution intervals
+		const nTP = path.length; // actual time points
 
 		// Minimum display columns: always extend at least to MIN_DISPLAY,
 		// and always show LOOKAHEAD future steps beyond actual path.
@@ -163,8 +171,10 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 					{Array.from({ length: maxT + 1 }, (_, t) => (
 						<line
 							key={`vg-${t}`}
-							x1={tx(t)} y1={0}
-							x2={tx(t)} y2={nT * CH}
+							x1={tx(t)}
+							y1={0}
+							x2={tx(t)}
+							y2={nT * CH}
 							stroke={t <= nInt ? GRID_LIGHT : FUTURE_GRID}
 							strokeWidth={1}
 						/>
@@ -174,18 +184,25 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 					{Array.from({ length: nT + 1 }, (_, i) => (
 						<line
 							key={`hg-${i}`}
-							x1={LW}              y1={i * CH}
-							x2={LW + maxT * CW}  y2={i * CH}
-							stroke={i === 0 || i === nT ? GRID_BORDER : GRID_LIGHT}
+							x1={LW}
+							y1={i * CH}
+							x2={LW + maxT * CW}
+							y2={i * CH}
+							stroke={
+								i === 0 || i === nT ? GRID_BORDER : GRID_LIGHT
+							}
 							strokeWidth={i === 0 || i === nT ? 1 : 0.75}
 						/>
 					))}
 
 					{/* Left border */}
 					<line
-						x1={LW} y1={0}
-						x2={LW} y2={nT * CH}
-						stroke={GRID_BORDER} strokeWidth={1}
+						x1={LW}
+						y1={0}
+						x2={LW}
+						y2={nT * CH}
+						stroke={GRID_BORDER}
+						strokeWidth={1}
 					/>
 
 					{/* ── Task labels ── */}
@@ -209,7 +226,8 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 					{Array.from({ length: nT }, (_, i) =>
 						Array.from({ length: nInt }, (_, t) => {
 							if (!executes(i, t)) return null;
-							const { fill, stroke } = TASK_COLORS[i % TASK_COLORS.length];
+							const { fill, stroke } =
+								TASK_COLORS[i % TASK_COLORS.length];
 							return (
 								<rect
 									key={`ex-${i}-${t}`}
@@ -238,22 +256,34 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 								return (
 									<g key={`up-${i}-${t}`}>
 										<line
-											x1={x} y1={yBot}
-											x2={x} y2={yTop + 7}
-											stroke={ARROW_COLOR} strokeWidth={1}
+											x1={x}
+											y1={yBot}
+											x2={x}
+											y2={yTop + 7}
+											stroke={ARROW_COLOR}
+											strokeWidth={1}
 										/>
-										<polygon points={ptsUp(x, yTop)} fill={ARROW_COLOR} />
+										<polygon
+											points={ptsUp(x, yTop)}
+											fill={ARROW_COLOR}
+										/>
 									</g>
 								);
 							}
 							return (
 								<g key={`dn-${i}-${t}`}>
 									<line
-										x1={x} y1={yTop}
-										x2={x} y2={yBot - 7}
-										stroke={ARROW_COLOR} strokeWidth={1}
+										x1={x}
+										y1={yTop}
+										x2={x}
+										y2={yBot - 7}
+										stroke={ARROW_COLOR}
+										strokeWidth={1}
 									/>
-									<polygon points={ptsDn(x, yBot)} fill={ARROW_COLOR} />
+									<polygon
+										points={ptsDn(x, yBot)}
+										fill={ARROW_COLOR}
+									/>
 								</g>
 							);
 						})
@@ -261,65 +291,100 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 
 					{/* ── Deadline markers ── */}
 					{showDeadlines &&
-						Array.from(deadlineMap.entries()).flatMap(([i, times]) =>
-							times.map((absT, ki) => {
-								const x = tx(absT);
-								const yTop = ty(i) + 2;
-								const yBot = ty(i) + CH - 2;
-								return (
-									<g key={`dl-${i}-${absT}-${ki}`}>
-										<line
-											x1={x} y1={yTop + 6}
-											x2={x} y2={yBot}
-											stroke={DEADLINE_COLOR} strokeWidth={1}
-											strokeDasharray="3,2"
-										/>
-										<polygon points={ptsUp(x, yTop)} fill={DEADLINE_COLOR} />
-										<line
-											x1={x} y1={yTop + 6}
-											x2={x + 7} y2={yTop + 6}
-											stroke={DEADLINE_COLOR} strokeWidth={1}
-										/>
-									</g>
-								);
-							})
+						Array.from(deadlineMap.entries()).flatMap(
+							([i, times]) =>
+								times.map((absT, ki) => {
+									const x = tx(absT);
+									const yTop = ty(i) + 2;
+									const yBot = ty(i) + CH - 2;
+									return (
+										<g key={`dl-${i}-${absT}-${ki}`}>
+											<line
+												x1={x}
+												y1={yTop + 6}
+												x2={x}
+												y2={yBot}
+												stroke={DEADLINE_COLOR}
+												strokeWidth={1}
+												strokeDasharray="3,2"
+											/>
+											<polygon
+												points={ptsUp(x, yTop)}
+												fill={DEADLINE_COLOR}
+											/>
+											<line
+												x1={x}
+												y1={yTop + 6}
+												x2={x + 7}
+												y2={yTop + 6}
+												stroke={DEADLINE_COLOR}
+												strokeWidth={1}
+											/>
+										</g>
+									);
+								})
 						)}
 
 					{/* ── Bottom axis ── */}
 					<line
-						x1={LW} y1={nT * CH}
-						x2={tx(maxT) + 8} y2={nT * CH}
-						stroke="#2c2c2c" strokeWidth={1}
+						x1={LW}
+						y1={nT * CH}
+						x2={tx(maxT) + 8}
+						y2={nT * CH}
+						stroke="#2c2c2c"
+						strokeWidth={1}
 					/>
-					<polygon points={ptsRight(tx(maxT) + 14, nT * CH)} fill="#2c2c2c" />
+					<polygon
+						points={ptsRight(tx(maxT) + 14, nT * CH)}
+						fill="#2c2c2c"
+					/>
 					<text
-						x={tx(maxT) + 18} y={nT * CH + 1}
+						x={tx(maxT) + 18}
+						y={nT * CH + 1}
 						dominantBaseline="middle"
-						fontSize={11} fontStyle="italic"
-						fill="#2c2c2c" fontFamily="var(--font-ui)"
+						fontSize={11}
+						fontStyle="italic"
+						fill="#2c2c2c"
+						fontFamily="var(--font-ui)"
 					>
 						t
 					</text>
 
 					{/* ── Tick marks & labels — start from 1, skip t=0 ── */}
 					{Array.from({ length: maxT }, (_, idx) => {
-						const t = idx + 1;  // labels: 1, 2, 3, …
+						const t = idx + 1; // labels: 1, 2, 3, …
 						const x = tx(t);
 						const y = nT * CH;
 						const isFuture = t > nInt;
-						const isDeadlineTick = showDeadlines && t > displayCols &&
-							Array.from(deadlineMap.values()).some(times => times.includes(t));
+						const isDeadlineTick =
+							showDeadlines &&
+							t > displayCols &&
+							Array.from(deadlineMap.values()).some((times) =>
+								times.includes(t)
+							);
 						const tickColor = isDeadlineTick
 							? DEADLINE_COLOR
-							: isFuture ? '#C9CDD2' : '#2c2c2c';
+							: isFuture
+								? '#C9CDD2'
+								: '#2c2c2c';
 						const labelColor = isDeadlineTick
 							? DEADLINE_COLOR
-							: isFuture ? '#C9CDD2' : '#6B7280';
+							: isFuture
+								? '#C9CDD2'
+								: '#6B7280';
 						return (
 							<g key={`tick-${t}`}>
-								<line x1={x} y1={y} x2={x} y2={y + 5} stroke={tickColor} strokeWidth={1} />
+								<line
+									x1={x}
+									y1={y}
+									x2={x}
+									y2={y + 5}
+									stroke={tickColor}
+									strokeWidth={1}
+								/>
 								<text
-									x={x} y={y + 16}
+									x={x}
+									y={y + 16}
 									textAnchor="middle"
 									fontSize={9}
 									fill={labelColor}
@@ -334,8 +399,10 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 					{/* Processor count badge (top-left of grid) */}
 					{systemConfig.m !== undefined && (
 						<text
-							x={LW + 4} y={4}
-							fontSize={9} fill="#9CA3AF"
+							x={LW + 4}
+							y={4}
+							fontSize={9}
+							fill="#9CA3AF"
 							fontFamily="var(--font-mono)"
 							dominantBaseline="hanging"
 						>
@@ -346,9 +413,12 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 					{/* Future region separator — light dashed vertical line */}
 					{displayCols > nInt && nInt > 0 && (
 						<line
-							x1={tx(nInt)} y1={0}
-							x2={tx(nInt)} y2={nT * CH}
-							stroke="#C9CDD2" strokeWidth={1}
+							x1={tx(nInt)}
+							y1={0}
+							x2={tx(nInt)}
+							y2={nT * CH}
+							stroke="#C9CDD2"
+							strokeWidth={1}
 							strokeDasharray="4,3"
 						/>
 					)}

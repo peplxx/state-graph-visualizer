@@ -1097,14 +1097,12 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				routeCache.graph !== graphData ||
 				routeCache.layout !== activeLayout
 			) {
-				const bundles = buildLoopBundles(
-					loopEdges,
-					nodeMap,
-					isRadial
-				);
+				const bundles = buildLoopBundles(loopEdges, nodeMap, isRadial);
 				const byEdge = new Map(
 					bundles.flatMap((bundle) =>
-						bundle.edges.map((edge) => [edgeId(edge), bundle] as const)
+						bundle.edges.map(
+							(edge) => [edgeId(edge), bundle] as const
+						)
 					)
 				);
 				const paths = new Map<GraphEdge, string>();

@@ -1,7 +1,12 @@
 import * as yaml from 'js-yaml';
 import { GraphFileYamlSchema, formatZodErrors } from '../schema/graphSchema';
 import type { GraphNodeYaml } from '../schema/graphSchema';
-import type { GraphFile, GraphEdge, GraphNode, GraphArea } from '../types/graph';
+import type {
+	GraphFile,
+	GraphEdge,
+	GraphNode,
+	GraphArea
+} from '../types/graph';
 import { toNodeTaskDisplay } from '../types/graph';
 
 function synthesizeEdges(nodes: GraphNodeYaml[]): GraphEdge[] {
@@ -91,8 +96,20 @@ export function parseFile(content: string): GraphFile {
  */
 export function serializeToYAML(
 	graphFile: GraphFile,
-	colorOverrides?: Map<string, { fill?: string; border?: string; hatch?: string }>,
-	areaOverrides?: Map<string, { fill?: string; border?: string; hatch?: string; labelPosition?: string; nodes?: string[] }>
+	colorOverrides?: Map<
+		string,
+		{ fill?: string; border?: string; hatch?: string }
+	>,
+	areaOverrides?: Map<
+		string,
+		{
+			fill?: string;
+			border?: string;
+			hatch?: string;
+			labelPosition?: string;
+			nodes?: string[];
+		}
+	>
 ): string {
 	// Reconstruct children / loopback edge lists per node
 	const childrenMap = new Map<string, string[]>();
@@ -167,13 +184,16 @@ export function serializeToYAML(
 				if (h === 'none') return undefined;
 				return h;
 			})();
-			const effectiveLabelPosition = ov?.labelPosition ?? area.labelPosition;
+			const effectiveLabelPosition =
+				ov?.labelPosition ?? area.labelPosition;
 			const effectiveNodes = ov?.nodes ?? area.nodeIds;
 			return {
 				id: area.id,
 				nodes: effectiveNodes,
 				...(area.label ? { label: area.label } : {}),
-				...(effectiveLabelPosition ? { labelPosition: effectiveLabelPosition } : {}),
+				...(effectiveLabelPosition
+					? { labelPosition: effectiveLabelPosition }
+					: {}),
 				...(effectiveFill ? { fillColor: effectiveFill } : {}),
 				...(effectiveBorder ? { borderColor: effectiveBorder } : {}),
 				...(effectiveHatch ? { hatch: effectiveHatch } : {}),

@@ -1,5 +1,23 @@
 # React + TypeScript + Vite
 
+## Quality checks
+
+Use Node.js 22 (22.12 or newer) and Bun 1.3.6, pinned in `package.json`.
+
+```sh
+bun install --frozen-lockfile
+bun run build
+bun run lint
+bun run fmt:check
+```
+
+`build` checks TypeScript and creates the production bundle. `lint` fails on
+errors and warnings. To fix formatting locally, run `bun run fmt`.
+
+GitHub Actions runs Build, Lint, and Formatting independently on every push and
+pull request, and supports manual runs. Formatting follows `.oxfmtrc.json`,
+including its file exclusions.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:

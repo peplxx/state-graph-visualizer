@@ -1,6 +1,23 @@
 import React from 'react';
-import type { SelectionState, GraphArea, LabelPosition, GraphNode, GraphEdge } from '../types/graph';
-import { X, ArrowUp, ArrowDown, Minus, RotateCcw, MousePointer2, Layers, Trash2, Timer, Download } from 'lucide-react';
+import type {
+	SelectionState,
+	GraphArea,
+	LabelPosition,
+	GraphNode,
+	GraphEdge
+} from '../types/graph';
+import {
+	X,
+	ArrowUp,
+	ArrowDown,
+	Minus,
+	RotateCcw,
+	MousePointer2,
+	Layers,
+	Trash2,
+	Timer,
+	Download
+} from 'lucide-react';
 import { SchedulingDiagram } from './SchedulingDiagram';
 import { findPathToNode } from '../utils/pathFinder';
 
@@ -18,7 +35,7 @@ const FILL_PALETTE: { color: string; label: string }[] = [
 	{ color: '#FDECEA', label: 'Blush' },
 	{ color: '#F3E8FF', label: 'Lilac' },
 	{ color: '#E0F2FE', label: 'Ice' },
-	{ color: '#F0FDF4', label: 'Foam' },
+	{ color: '#F0FDF4', label: 'Foam' }
 ];
 
 const BORDER_PALETTE: { color: string; label: string }[] = [
@@ -33,7 +50,7 @@ const BORDER_PALETTE: { color: string; label: string }[] = [
 	{ color: '#059669', label: 'Emerald' },
 	{ color: '#7C3AED', label: 'Violet' },
 	{ color: '#DB2777', label: 'Pink' },
-	{ color: '#0F766E', label: 'Teal' },
+	{ color: '#0F766E', label: 'Teal' }
 ];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -92,24 +109,86 @@ interface Props {
 
 const HatchNoneIcon: React.FC = () => (
 	<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-		<rect x="1" y="1" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+		<rect
+			x="1"
+			y="1"
+			width="14"
+			height="14"
+			rx="2"
+			stroke="currentColor"
+			strokeWidth="1.5"
+			fill="none"
+		/>
 	</svg>
 );
 
 const HatchSingleIcon: React.FC = () => (
 	<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-		<rect x="1" y="1" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-		<line x1="3" y1="13" x2="13" y2="3" stroke="currentColor" strokeWidth="1.2"/>
-		<line x1="0" y1="10" x2="6" y2="16" stroke="currentColor" strokeWidth="1.2"/>
-		<line x1="10" y1="0" x2="16" y2="6" stroke="currentColor" strokeWidth="1.2"/>
+		<rect
+			x="1"
+			y="1"
+			width="14"
+			height="14"
+			rx="2"
+			stroke="currentColor"
+			strokeWidth="1.5"
+			fill="none"
+		/>
+		<line
+			x1="3"
+			y1="13"
+			x2="13"
+			y2="3"
+			stroke="currentColor"
+			strokeWidth="1.2"
+		/>
+		<line
+			x1="0"
+			y1="10"
+			x2="6"
+			y2="16"
+			stroke="currentColor"
+			strokeWidth="1.2"
+		/>
+		<line
+			x1="10"
+			y1="0"
+			x2="16"
+			y2="6"
+			stroke="currentColor"
+			strokeWidth="1.2"
+		/>
 	</svg>
 );
 
 const HatchCrossIcon: React.FC = () => (
 	<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-		<rect x="1" y="1" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-		<line x1="3" y1="13" x2="13" y2="3" stroke="currentColor" strokeWidth="1.2"/>
-		<line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.2"/>
+		<rect
+			x="1"
+			y="1"
+			width="14"
+			height="14"
+			rx="2"
+			stroke="currentColor"
+			strokeWidth="1.5"
+			fill="none"
+		/>
+		<line
+			x1="3"
+			y1="13"
+			x2="13"
+			y2="3"
+			stroke="currentColor"
+			strokeWidth="1.2"
+		/>
+		<line
+			x1="3"
+			y1="3"
+			x2="13"
+			y2="13"
+			stroke="currentColor"
+			strokeWidth="1.2"
+		/>
 	</svg>
 );
 
@@ -136,7 +215,7 @@ const ColorRow: React.FC<ColorRowProps> = ({
 	currentColor,
 	hasOverride,
 	onSelect,
-	onReset,
+	onReset
 }) => (
 	<div className="appearance-row">
 		<div className="appearance-row-header">
@@ -188,10 +267,15 @@ interface HatchRowProps {
 const HATCH_OPTIONS: { value: HatchStyle; label: string; Icon: React.FC }[] = [
 	{ value: 'none', label: 'None', Icon: HatchNoneIcon },
 	{ value: 'single', label: 'Diagonal', Icon: HatchSingleIcon },
-	{ value: 'cross', label: 'Cross', Icon: HatchCrossIcon },
+	{ value: 'cross', label: 'Cross', Icon: HatchCrossIcon }
 ];
 
-const HatchRow: React.FC<HatchRowProps> = ({ currentHatch, hasOverride, onChange, onReset }) => (
+const HatchRow: React.FC<HatchRowProps> = ({
+	currentHatch,
+	hasOverride,
+	onChange,
+	onReset
+}) => (
 	<div className="appearance-row">
 		<div className="appearance-row-header">
 			<span className="appearance-row-label">Hatch</span>
@@ -226,23 +310,17 @@ const HatchRow: React.FC<HatchRowProps> = ({ currentHatch, hasOverride, onChange
 
 // ── Label position picker ─────────────────────────────────────────────────────
 
-const LABEL_POSITIONS: LabelPosition[] = [
-	'top-left', 'top-center', 'top-right',
-	'center', 'center', 'center',
-	'bottom-left', 'bottom-center', 'bottom-right',
-];
-
 // 3x3 grid cells: [row, col] positions with a filled dot for the label spot
 const GRID_CELLS: { pos: LabelPosition | null; row: number; col: number }[] = [
-	{ pos: 'top-left',      row: 0, col: 0 },
-	{ pos: 'top-center',    row: 0, col: 1 },
-	{ pos: 'top-right',     row: 0, col: 2 },
-	{ pos: null,            row: 1, col: 0 },
-	{ pos: 'center',        row: 1, col: 1 },
-	{ pos: null,            row: 1, col: 2 },
-	{ pos: 'bottom-left',   row: 2, col: 0 },
+	{ pos: 'top-left', row: 0, col: 0 },
+	{ pos: 'top-center', row: 0, col: 1 },
+	{ pos: 'top-right', row: 0, col: 2 },
+	{ pos: null, row: 1, col: 0 },
+	{ pos: 'center', row: 1, col: 1 },
+	{ pos: null, row: 1, col: 2 },
+	{ pos: 'bottom-left', row: 2, col: 0 },
 	{ pos: 'bottom-center', row: 2, col: 1 },
-	{ pos: 'bottom-right',  row: 2, col: 2 },
+	{ pos: 'bottom-right', row: 2, col: 2 }
 ];
 
 const LabelPositionPicker: React.FC<{
@@ -289,11 +367,13 @@ export const Sidebar: React.FC<Props> = ({
 	onCreateArea,
 	onAssignGroupToArea,
 	onAreaLabelChange,
-	onDeleteArea,
+	onDeleteArea
 }) => {
 	// All hooks must be at top level (before any early returns).
 	// Sidebar is keyed by area id in App.tsx so this reinitializes on area change.
-	const [labelDraft, setLabelDraft] = React.useState(selectedArea?.label ?? '');
+	const [labelDraft, setLabelDraft] = React.useState(
+		selectedArea?.label ?? ''
+	);
 	const [showDeadlines, setShowDeadlines] = React.useState(false);
 
 	// Derive node/group before early returns so hooks below are unconditional.
@@ -316,7 +396,10 @@ export const Sidebar: React.FC<Props> = ({
 		// Resolve CSS custom properties so the file renders outside the browser
 		str = str
 			.replace(/var\(--font-ui\)/g, '"Inter", system-ui, sans-serif')
-			.replace(/var\(--font-mono\)/g, '"JetBrains Mono", "Fira Mono", monospace');
+			.replace(
+				/var\(--font-mono\)/g,
+				'"JetBrains Mono", "Fira Mono", monospace'
+			);
 		const blob = new Blob([str], { type: 'image/svg+xml' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
@@ -329,9 +412,16 @@ export const Sidebar: React.FC<Props> = ({
 	// ── Area panel ──────────────────────────────────────────────────────
 	if (selectedArea) {
 		const aFill = areaOverride?.fill ?? selectedArea.fillColor ?? '#F5F5F5';
-		const aBorder = areaOverride?.border ?? selectedArea.borderColor ?? '#374151';
-		const aHatch: HatchStyle = (areaOverride?.hatch as HatchStyle | undefined) ?? (selectedArea.hatch as HatchStyle | undefined) ?? 'none';
-		const aPos: LabelPosition = areaOverride?.labelPosition ?? selectedArea.labelPosition ?? 'top-left';
+		const aBorder =
+			areaOverride?.border ?? selectedArea.borderColor ?? '#374151';
+		const aHatch: HatchStyle =
+			(areaOverride?.hatch as HatchStyle | undefined) ??
+			(selectedArea.hatch as HatchStyle | undefined) ??
+			'none';
+		const aPos: LabelPosition =
+			areaOverride?.labelPosition ??
+			selectedArea.labelPosition ??
+			'top-left';
 		const hasFillOv = areaOverride?.fill !== undefined;
 		const hasBorderOv = areaOverride?.border !== undefined;
 		const hasHatchOv = areaOverride?.hatch !== undefined;
@@ -386,8 +476,20 @@ export const Sidebar: React.FC<Props> = ({
 						placeholder="Add label..."
 					/>
 					{onAreaLabelPositionChange && labelDraft && (
-						<div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-							<span className="appearance-row-label" style={{ flexShrink: 0 }}>Position</span>
+						<div
+							style={{
+								display: 'flex',
+								alignItems: 'center',
+								gap: 8,
+								marginTop: 6
+							}}
+						>
+							<span
+								className="appearance-row-label"
+								style={{ flexShrink: 0 }}
+							>
+								Position
+							</span>
 							<LabelPositionPicker
 								current={aPos}
 								onChange={onAreaLabelPositionChange}
@@ -404,8 +506,12 @@ export const Sidebar: React.FC<Props> = ({
 									palette={FILL_PALETTE}
 									currentColor={aFill}
 									hasOverride={hasFillOv}
-									onSelect={(c) => onAreaColorChange(c, undefined)}
-									onReset={() => onAreaColorChange(null, undefined)}
+									onSelect={(c) =>
+										onAreaColorChange(c, undefined)
+									}
+									onReset={() =>
+										onAreaColorChange(null, undefined)
+									}
 								/>
 								<div className="appearance-divider" />
 								<ColorRow
@@ -413,15 +519,31 @@ export const Sidebar: React.FC<Props> = ({
 									palette={BORDER_PALETTE}
 									currentColor={aBorder}
 									hasOverride={hasBorderOv}
-									onSelect={(c) => onAreaColorChange(undefined, c)}
-									onReset={() => onAreaColorChange(undefined, null)}
+									onSelect={(c) =>
+										onAreaColorChange(undefined, c)
+									}
+									onReset={() =>
+										onAreaColorChange(undefined, null)
+									}
 								/>
 								<div className="appearance-divider" />
 								<HatchRow
 									currentHatch={aHatch}
 									hasOverride={hasHatchOv}
-									onChange={(h) => onAreaColorChange(undefined, undefined, h)}
-									onReset={() => onAreaColorChange(undefined, undefined, null)}
+									onChange={(h) =>
+										onAreaColorChange(
+											undefined,
+											undefined,
+											h
+										)
+									}
+									onReset={() =>
+										onAreaColorChange(
+											undefined,
+											undefined,
+											null
+										)
+									}
 								/>
 							</div>
 						</>
@@ -445,13 +567,17 @@ export const Sidebar: React.FC<Props> = ({
 		colorOverrides?.get(id)?.border ?? fallback ?? '#1A1A1A';
 
 	const effectiveHatch = (id: string, fallback?: HatchStyle): HatchStyle =>
-		(colorOverrides?.get(id)?.hatch as HatchStyle | undefined) ?? fallback ?? 'none';
+		(colorOverrides?.get(id)?.hatch as HatchStyle | undefined) ??
+		fallback ??
+		'none';
 
 	// Compute display color for single or group
 	const displayFill = node
 		? effectiveFill(node.id, node.fillColor)
 		: (() => {
-				const fills = nodes.map((n) => effectiveFill(n.id, n.fillColor));
+				const fills = nodes.map((n) =>
+					effectiveFill(n.id, n.fillColor)
+				);
 				const allSame = fills.every((f) => f === fills[0]);
 				return allSame ? fills[0] : '#FFFFFF';
 			})();
@@ -474,9 +600,21 @@ export const Sidebar: React.FC<Props> = ({
 				return allSame ? hatches[0] : 'none';
 			})();
 
-	const hasFillOverride = nodes.some((n) => colorOverrides?.has(n.id) && colorOverrides.get(n.id)?.fill !== undefined);
-	const hasBorderOverride = nodes.some((n) => colorOverrides?.has(n.id) && colorOverrides.get(n.id)?.border !== undefined);
-	const hasHatchOverride = nodes.some((n) => colorOverrides?.has(n.id) && colorOverrides.get(n.id)?.hatch !== undefined);
+	const hasFillOverride = nodes.some(
+		(n) =>
+			colorOverrides?.has(n.id) &&
+			colorOverrides.get(n.id)?.fill !== undefined
+	);
+	const hasBorderOverride = nodes.some(
+		(n) =>
+			colorOverrides?.has(n.id) &&
+			colorOverrides.get(n.id)?.border !== undefined
+	);
+	const hasHatchOverride = nodes.some(
+		(n) =>
+			colorOverrides?.has(n.id) &&
+			colorOverrides.get(n.id)?.hatch !== undefined
+	);
 
 	return (
 		<aside className="sidebar">
@@ -525,10 +663,18 @@ export const Sidebar: React.FC<Props> = ({
 										currentColor={displayFill}
 										hasOverride={hasFillOverride}
 										onSelect={(color) =>
-											onColorChange(nodeIds, color, undefined)
+											onColorChange(
+												nodeIds,
+												color,
+												undefined
+											)
 										}
 										onReset={() =>
-											onColorChange(nodeIds, null, undefined)
+											onColorChange(
+												nodeIds,
+												null,
+												undefined
+											)
 										}
 									/>
 									<div className="appearance-divider" />
@@ -538,10 +684,18 @@ export const Sidebar: React.FC<Props> = ({
 										currentColor={displayBorder}
 										hasOverride={hasBorderOverride}
 										onSelect={(color) =>
-											onColorChange(nodeIds, undefined, color)
+											onColorChange(
+												nodeIds,
+												undefined,
+												color
+											)
 										}
 										onReset={() =>
-											onColorChange(nodeIds, undefined, null)
+											onColorChange(
+												nodeIds,
+												undefined,
+												null
+											)
 										}
 									/>
 									<div className="appearance-divider" />
@@ -549,10 +703,20 @@ export const Sidebar: React.FC<Props> = ({
 										currentHatch={displayHatch}
 										hasOverride={hasHatchOverride}
 										onChange={(h) =>
-											onColorChange(nodeIds, undefined, undefined, h)
+											onColorChange(
+												nodeIds,
+												undefined,
+												undefined,
+												h
+											)
 										}
 										onReset={() =>
-											onColorChange(nodeIds, undefined, undefined, null)
+											onColorChange(
+												nodeIds,
+												undefined,
+												undefined,
+												null
+											)
 										}
 									/>
 								</div>
@@ -597,7 +761,10 @@ export const Sidebar: React.FC<Props> = ({
 						{systemConfig && nodePath && (
 							<>
 								<div className="sched-section-header">
-									<h4 className="section-title" style={{ margin: 0 }}>
+									<h4
+										className="section-title"
+										style={{ margin: 0 }}
+									>
 										Schedule
 									</h4>
 									<div style={{ display: 'flex', gap: 4 }}>
@@ -605,8 +772,14 @@ export const Sidebar: React.FC<Props> = ({
 											className={`sched-toggle-btn${showDeadlines ? ' is-active' : ''}`}
 											type="button"
 											aria-pressed={showDeadlines}
-											onClick={() => setShowDeadlines((v) => !v)}
-											title={showDeadlines ? 'Hide deadlines' : 'Show deadlines'}
+											onClick={() =>
+												setShowDeadlines((v) => !v)
+											}
+											title={
+												showDeadlines
+													? 'Hide deadlines'
+													: 'Show deadlines'
+											}
 										>
 											<Timer size={11} />
 											Deadlines
@@ -641,7 +814,9 @@ export const Sidebar: React.FC<Props> = ({
 							</>
 						)}
 						{!nodePath && graphData && systemConfig && (
-							<p className="sched-no-path">No path from initial state</p>
+							<p className="sched-no-path">
+								No path from initial state
+							</p>
 						)}
 
 						{systemConfig && (
@@ -684,30 +859,38 @@ export const Sidebar: React.FC<Props> = ({
 							</code>
 						</div>
 
-						{allAreas && allAreas.length > 0 && onAssignNodeToArea && (() => {
-							const currentAreaId = allAreas.find((a) =>
-								a.nodeIds.includes(node.id)
-							)?.id ?? null;
-							return (
-								<>
-									<h4 className="section-title">Area</h4>
-									<select
-										className="area-assign-select"
-										value={currentAreaId ?? ''}
-										onChange={(e) =>
-											onAssignNodeToArea(e.target.value || null)
-										}
-									>
-										<option value="">— None —</option>
-										{allAreas.map((a) => (
-											<option key={a.id} value={a.id}>
-												{a.label ? `${a.label} (${a.id})` : a.id}
-											</option>
-										))}
-									</select>
-								</>
-							);
-						})()}
+						{allAreas &&
+							allAreas.length > 0 &&
+							onAssignNodeToArea &&
+							(() => {
+								const currentAreaId =
+									allAreas.find((a) =>
+										a.nodeIds.includes(node.id)
+									)?.id ?? null;
+								return (
+									<>
+										<h4 className="section-title">Area</h4>
+										<select
+											className="area-assign-select"
+											value={currentAreaId ?? ''}
+											onChange={(e) =>
+												onAssignNodeToArea(
+													e.target.value || null
+												)
+											}
+										>
+											<option value="">— None —</option>
+											{allAreas.map((a) => (
+												<option key={a.id} value={a.id}>
+													{a.label
+														? `${a.label} (${a.id})`
+														: a.id}
+												</option>
+											))}
+										</select>
+									</>
+								);
+							})()}
 					</>
 				) : (
 					<>
@@ -728,10 +911,18 @@ export const Sidebar: React.FC<Props> = ({
 										currentColor={displayFill}
 										hasOverride={hasFillOverride}
 										onSelect={(color) =>
-											onColorChange(nodeIds, color, undefined)
+											onColorChange(
+												nodeIds,
+												color,
+												undefined
+											)
 										}
 										onReset={() =>
-											onColorChange(nodeIds, null, undefined)
+											onColorChange(
+												nodeIds,
+												null,
+												undefined
+											)
 										}
 									/>
 									<div className="appearance-divider" />
@@ -741,10 +932,18 @@ export const Sidebar: React.FC<Props> = ({
 										currentColor={displayBorder}
 										hasOverride={hasBorderOverride}
 										onSelect={(color) =>
-											onColorChange(nodeIds, undefined, color)
+											onColorChange(
+												nodeIds,
+												undefined,
+												color
+											)
 										}
 										onReset={() =>
-											onColorChange(nodeIds, undefined, null)
+											onColorChange(
+												nodeIds,
+												undefined,
+												null
+											)
 										}
 									/>
 									<div className="appearance-divider" />
@@ -752,10 +951,20 @@ export const Sidebar: React.FC<Props> = ({
 										currentHatch={displayHatch}
 										hasOverride={hasHatchOverride}
 										onChange={(h) =>
-											onColorChange(nodeIds, undefined, undefined, h)
+											onColorChange(
+												nodeIds,
+												undefined,
+												undefined,
+												h
+											)
 										}
 										onReset={() =>
-											onColorChange(nodeIds, undefined, undefined, null)
+											onColorChange(
+												nodeIds,
+												undefined,
+												undefined,
+												null
+											)
 										}
 									/>
 								</div>
@@ -773,37 +982,54 @@ export const Sidebar: React.FC<Props> = ({
 							</button>
 						)}
 
-						{allAreas && allAreas.length > 0 && onAssignGroupToArea && (() => {
-							const nodeAreaIds = nodes.map((n) =>
-								allAreas.find((a) => a.nodeIds.includes(n.id))?.id ?? null
-							);
-							const allSame = nodeAreaIds.every((id) => id === nodeAreaIds[0]);
-							const currentAreaId = allSame ? (nodeAreaIds[0] ?? '') : '';
-							return (
-								<>
-									<h4 className="section-title">Assign to Area</h4>
-									<select
-										className="area-assign-select"
-										value={currentAreaId}
-										onChange={(e) =>
-											onAssignGroupToArea(nodeIds, e.target.value || null)
-										}
-									>
-										<option value="">— None —</option>
-										{!allSame && (
-											<option value="" disabled>
-												— Mixed —
-											</option>
-										)}
-										{allAreas.map((a) => (
-											<option key={a.id} value={a.id}>
-												{a.label ? `${a.label} (${a.id})` : a.id}
-											</option>
-										))}
-									</select>
-								</>
-							);
-						})()}
+						{allAreas &&
+							allAreas.length > 0 &&
+							onAssignGroupToArea &&
+							(() => {
+								const nodeAreaIds = nodes.map(
+									(n) =>
+										allAreas.find((a) =>
+											a.nodeIds.includes(n.id)
+										)?.id ?? null
+								);
+								const allSame = nodeAreaIds.every(
+									(id) => id === nodeAreaIds[0]
+								);
+								const currentAreaId = allSame
+									? (nodeAreaIds[0] ?? '')
+									: '';
+								return (
+									<>
+										<h4 className="section-title">
+											Assign to Area
+										</h4>
+										<select
+											className="area-assign-select"
+											value={currentAreaId}
+											onChange={(e) =>
+												onAssignGroupToArea(
+													nodeIds,
+													e.target.value || null
+												)
+											}
+										>
+											<option value="">— None —</option>
+											{!allSame && (
+												<option value="" disabled>
+													— Mixed —
+												</option>
+											)}
+											{allAreas.map((a) => (
+												<option key={a.id} value={a.id}>
+													{a.label
+														? `${a.label} (${a.id})`
+														: a.id}
+												</option>
+											))}
+										</select>
+									</>
+								);
+							})()}
 
 						<h4 className="section-title">Selected IDs</h4>
 						<div className="selection-id-list">

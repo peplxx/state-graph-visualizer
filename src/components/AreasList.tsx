@@ -18,7 +18,7 @@ export const AreasList: React.FC<Props> = ({
 	selectedAreaId,
 	hiddenAreaIds,
 	onAreaSelect,
-	onToggleAreaVisibility,
+	onToggleAreaVisibility
 }) => {
 	if (areas.length === 0) return null;
 	return (
@@ -44,7 +44,10 @@ export const AreasList: React.FC<Props> = ({
 						>
 							<span
 								className="areas-list-swatch"
-								style={{ background: fill, borderColor: border }}
+								style={{
+									background: fill,
+									borderColor: border
+								}}
 							/>
 							<span className="areas-list-label">
 								{area.label ?? area.id}
@@ -60,7 +63,11 @@ export const AreasList: React.FC<Props> = ({
 									onToggleAreaVisibility(area.id);
 								}}
 							>
-								{hidden ? <EyeOff size={12} /> : <Eye size={12} />}
+								{hidden ? (
+									<EyeOff size={12} />
+								) : (
+									<Eye size={12} />
+								)}
 							</button>
 						)}
 					</div>

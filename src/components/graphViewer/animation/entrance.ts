@@ -148,8 +148,7 @@ export function animateStrokeDrawEntrance<T, P extends d3.BaseType>(
 		if (markerEnd) {
 			path.attr('data-marker-end', markerEnd).attr('marker-end', null);
 		}
-		path
-			.attr('opacity', 1)
+		path.attr('opacity', 1)
 			.attr('stroke-dasharray', `${length} ${length}`)
 			.attr('stroke-dashoffset', length);
 	});
@@ -163,11 +162,15 @@ export function animateStrokeDrawEntrance<T, P extends d3.BaseType>(
 		.on('end', function () {
 			const path = d3.select(this);
 			const markerEnd = path.attr('data-marker-end');
-			path
-				.attr('stroke-dasharray', finishedDasharray ?? null)
-				.attr('stroke-dashoffset', null);
+			path.attr('stroke-dasharray', finishedDasharray ?? null).attr(
+				'stroke-dashoffset',
+				null
+			);
 			if (markerEnd) {
-				path.attr('marker-end', markerEnd).attr('data-marker-end', null);
+				path.attr('marker-end', markerEnd).attr(
+					'data-marker-end',
+					null
+				);
 			}
 		});
 }

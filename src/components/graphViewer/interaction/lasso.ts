@@ -1,7 +1,11 @@
 import * as d3 from 'd3';
 import type { NodePos, Point } from '../types';
 
-export function pointInPolygon(x: number, y: number, polygon: Point[]): boolean {
+export function pointInPolygon(
+	x: number,
+	y: number,
+	polygon: Point[]
+): boolean {
 	if (polygon.length < 3) return false;
 	let inside = false;
 	for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
