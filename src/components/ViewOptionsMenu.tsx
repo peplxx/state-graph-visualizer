@@ -4,6 +4,8 @@ import { Check, ChevronDown, SlidersHorizontal } from 'lucide-react';
 interface Props {
 	animation: boolean;
 	legend: boolean;
+	areasList: boolean;
+	onAreasListChange: () => void;
 	systemConfig: boolean;
 	onSystemConfigChange: () => void;
 	deadlineBadges: boolean;
@@ -44,6 +46,11 @@ export function ViewOptionsMenu(props: Props) {
 			label: 'Show system config',
 			checked: props.systemConfig,
 			toggle: props.onSystemConfigChange
+		},
+		{
+			label: 'Show areas list',
+			checked: props.areasList,
+			toggle: props.onAreasListChange
 		},
 		{
 			label: 'Deadline warning badges',

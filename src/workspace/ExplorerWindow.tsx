@@ -1,3 +1,4 @@
+import { DeleteAreaDialog } from './DeleteAreaDialog';
 import { SystemConfigPanel } from '../components/SystemConfigPanel';
 import { Download, Save } from 'lucide-react';
 import React, {
@@ -74,6 +75,7 @@ export function ExplorerWindow({
 	const [showSystemConfig, setShowSystemConfig] = useState(
 		initial.showSystemConfig
 	);
+	const [showAreasList, setShowAreasList] = useState(initial.showAreasList);
 	const [showLegend, setShowLegend] = useState(initial.showLegend);
 	const [showDeadlineBadges, setShowDeadlineBadges] = useState(
 		initial.showDeadlineBadges
@@ -188,9 +190,7 @@ export function ExplorerWindow({
 						const updated = currentNodes.filter(
 							(id) => id !== nodeId
 						);
-						if (updated.length > 0 || ov) {
-							next.set(area.id, { ...ov, nodes: updated });
-						}
+						next.set(area.id, { ...ov, nodes: updated });
 					}
 				}
 				if (areaId) {
@@ -284,9 +284,11 @@ export function ExplorerWindow({
 		[selectedArea]
 	);
 
-	const handleDeleteArea = useCallback(() => {
-		if (!selectedArea) return;
-		const id = selectedArea.id;
+	const [pendingAreaId, handleDeleteArea] = useState<string | null>(null);
+	const pendingArea = graphData?.areas?.find(
+		(area) => area.id === pendingAreaId
+	);
+	const deleteArea = useCallback((id: string) => {
 		setGraphData((prev) =>
 			prev
 				? { ...prev, areas: prev.areas?.filter((a) => a.id !== id) }
@@ -297,8 +299,13 @@ export function ExplorerWindow({
 			next.delete(id);
 			return next;
 		});
-		setSelectedArea(null);
-	}, [selectedArea]);
+		setHiddenAreaIds((prev) => {
+			const next = new Set(prev);
+			next.delete(id);
+			return next;
+		});
+		setSelectedArea((prev) => (prev?.id === id ? null : prev));
+	}, []);
 
 	const handleCreateArea = useCallback(
 		(nodeIds: string[]) => {
@@ -329,13 +336,17 @@ export function ExplorerWindow({
 		[graphData]
 	);
 
-	const handleSelectAreaNodes = useCallback(() => {
-		if (!selectedArea) return;
-		const ov = areaOverrides.get(selectedArea.id);
-		const nodeIds = ov?.nodes ?? selectedArea.nodeIds;
-		viewerRef.current?.selectNodes(nodeIds);
-		setSelectedArea(null);
-	}, [selectedArea, areaOverrides]);
+	const handleSelectAreaNodes = useCallback(
+		(areaId: string) => {
+			const area = graphData?.areas?.find((item) => item.id === areaId);
+			if (!area) return;
+			const nodeIds = areaOverrides.get(areaId)?.nodes ?? area.nodeIds;
+			if (!nodeIds.length) return;
+			viewerRef.current?.selectNodes(nodeIds);
+			setSelectedArea(null);
+		},
+		[graphData, areaOverrides]
+	);
 
 	const handleToggleAreaVisibility = useCallback((areaId: string) => {
 		setHiddenAreaIds((prev) => {
@@ -400,6 +411,7 @@ export function ExplorerWindow({
 			showNormalEdges,
 			enableAnimation,
 			showLegend,
+			showAreasList,
 			showSystemConfig,
 			showDeadlineBadges,
 			showAreas,
@@ -428,6 +440,7 @@ export function ExplorerWindow({
 			showNormalEdges,
 			enableAnimation,
 			showLegend,
+			showAreasList,
 			showSystemConfig,
 			showDeadlineBadges,
 			showAreas,
@@ -528,6 +541,10 @@ export function ExplorerWindow({
 					<ViewOptionsMenu
 						animation={enableAnimation}
 						legend={showLegend}
+						areasList={showAreasList}
+						onAreasListChange={() =>
+							setShowAreasList((value) => !value)
+						}
 						systemConfig={showSystemConfig}
 						onSystemConfigChange={() =>
 							setShowSystemConfig((v) => !v)
@@ -618,23 +635,29 @@ export function ExplorerWindow({
 						(showSystemConfig && graphData?.system) ||
 						sidebarOpen ||
 						selectedArea ||
-						graphData?.areas?.length
+						(showAreasList && graphData?.areas?.length)
 					)}
 				>
 					{showLegend && <Legend />}
 					{showSystemConfig && graphData?.system && (
 						<SystemConfigPanel system={graphData.system} />
 					)}
-					{graphData?.areas && graphData.areas.length > 0 && (
-						<AreasList
-							areas={graphData.areas}
-							areaOverrides={areaOverrides}
-							selectedAreaId={selectedArea?.id}
-							hiddenAreaIds={hiddenAreaIds}
-							onAreaSelect={handleAreaSelect}
-							onToggleAreaVisibility={handleToggleAreaVisibility}
-						/>
-					)}
+					{showAreasList &&
+						graphData?.areas &&
+						graphData.areas.length > 0 && (
+							<AreasList
+								onDeleteArea={handleDeleteArea}
+								onSelectAreaNodes={handleSelectAreaNodes}
+								areas={graphData.areas}
+								areaOverrides={areaOverrides}
+								selectedAreaId={selectedArea?.id}
+								hiddenAreaIds={hiddenAreaIds}
+								onAreaSelect={handleAreaSelect}
+								onToggleAreaVisibility={
+									handleToggleAreaVisibility
+								}
+							/>
+						)}
 					{(sidebarOpen && selectionRef.current) || selectedArea ? (
 						<Sidebar
 							showDeadlines={showDeadlines}
@@ -661,18 +684,41 @@ export function ExplorerWindow({
 							colorOverrides={colorOverrides}
 							onColorChange={handleColorChange}
 							selectedArea={selectedArea ?? undefined}
+							areaActions={
+								!showAreasList && selectedArea
+									? {
+											hidden: hiddenAreaIds.has(
+												selectedArea.id
+											),
+											selectNodes: () =>
+												handleSelectAreaNodes(
+													selectedArea.id
+												),
+											toggleVisibility: () =>
+												handleToggleAreaVisibility(
+													selectedArea.id
+												),
+											remove: () =>
+												handleDeleteArea(
+													selectedArea.id
+												)
+										}
+									: undefined
+							}
 							areaOverride={
 								selectedArea
 									? areaOverrides.get(selectedArea.id)
 									: undefined
 							}
-							allAreas={graphData?.areas}
+							allAreas={graphData?.areas?.map((area) => ({
+								...area,
+								nodeIds:
+									areaOverrides.get(area.id)?.nodes ??
+									area.nodeIds
+							}))}
 							onAreaColorChange={handleAreaColorChange}
 							onAreaLabelPositionChange={
 								handleAreaLabelPositionChange
-							}
-							onSelectAreaNodes={
-								selectedArea ? handleSelectAreaNodes : undefined
 							}
 							onAssignNodeToArea={
 								selectionRef.current?.nodes.length === 1
@@ -692,13 +738,24 @@ export function ExplorerWindow({
 									: undefined
 							}
 							onAreaLabelChange={handleAreaLabelChange}
-							onDeleteArea={
-								selectedArea ? handleDeleteArea : undefined
-							}
 						/>
 					) : null}
 				</ResizableSidePanel>
 			</div>
+			{pendingArea && (
+				<DeleteAreaDialog
+					name={
+						pendingArea.label
+							? `${pendingArea.label} (${pendingArea.id})`
+							: pendingArea.id
+					}
+					onCancel={() => handleDeleteArea(null)}
+					onDelete={() => {
+						deleteArea(pendingArea.id);
+						handleDeleteArea(null);
+					}}
+				/>
+			)}
 		</div>
 	);
 }

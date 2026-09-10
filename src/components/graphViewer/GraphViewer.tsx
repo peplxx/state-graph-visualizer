@@ -55,7 +55,6 @@ import { computeLassoHits, isLassoModifier } from './interaction/lasso';
 import {
 	buildAreaHatchOverlay,
 	darkenColor,
-	removeAreaHatchOverlay,
 	sanitizePatternId,
 	upsertHatchPattern
 } from './render/hatch';
@@ -834,8 +833,127 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 			};
 		}, []);
 
+		const drawnAreasRef = useRef<{
+			areas: GraphFile['areas'];
+			overrides: typeof areaOverrides;
+		} | null>(null);
+		const drawAreas = useCallback((shouldAnimateEntrance = false) => {
+			const graphData = graphDataRef.current;
+			if (!graphData || !gRef.current) return;
+			const g = d3.select(gRef.current);
+			const nodeMap = nodePosRef.current;
+			// ── Areas ─────────────────────────────────────────────────────
+			const areasLayer = g.select('.areas-layer');
+			const areasHatchLayer = g.select('.areas-hatch-layer');
+			areasLayer.selectAll('*').remove();
+			areasHatchLayer.selectAll('*').remove();
+
+			for (const area of graphData.areas ?? []) {
+				const ov = areaOverridesRef.current?.get(area.id);
+				const effectiveNodeIds = ov?.nodes ?? area.nodeIds;
+				const memberNodes = effectiveNodeIds
+					.map((id) => nodeMap.get(id))
+					.filter((n): n is NodePos => n !== undefined);
+				if (memberNodes.length === 0) continue;
+
+				const fill = ov?.fill ?? area.fillColor ?? '#F5F5F5';
+				const border = ov?.border ?? area.borderColor ?? '#374151';
+				const rawHatch =
+					ov?.hatch !== undefined ? ov.hatch : area.hatch;
+				const effectiveHatch =
+					rawHatch === 'none' ? undefined : rawHatch;
+				const labelPos =
+					ov?.labelPosition ?? area.labelPosition ?? 'top-left';
+
+				const areaGroup = areasLayer
+					.append('g')
+					.attr('class', 'area-group')
+					.attr('data-area-id', area.id)
+					.style('cursor', 'pointer');
+
+				// Per-element animation initial state
+				if (shouldAnimateEntrance) areaGroup.style('opacity', 0);
+				// Preserve per-area hidden state across layout switches
+				if (hiddenAreaIdsRef.current?.has(area.id))
+					areaGroup.style('display', 'none');
+
+				// Compute hull once for both shape and label
+				const hull = computeHull(effectiveNodeIds, nodeMap);
+				const hullPath = hull ? hullToPath(hull) : null;
+
+				// Shape — always solid fill; hatch goes to overlay layer above nodes
+				const isSelectedArea = selectedAreaIdRef.current === area.id;
+				areaGroup
+					.append('path')
+					.attr('class', 'area-shape')
+					.attr('data-base-stroke', border)
+					.attr('d', hullPath ?? '')
+					.attr('fill', fill)
+					.attr('stroke', isSelectedArea ? '#9b2e23' : border)
+					.attr('stroke-width', isSelectedArea ? 2.5 : 1.5)
+					.attr('stroke-dasharray', null);
+
+				// Hatch overlay — rendered above nodes in areas-hatch-layer
+				if (effectiveHatch && defsRef.current && hull && hullPath) {
+					buildAreaHatchOverlay(
+						areasHatchLayer,
+						defsRef.current,
+						area.id,
+						hull,
+						hullPath,
+						effectiveHatch,
+						darkenColor(border, 0.35)
+					);
+					const hatchEl = areasHatchLayer.select(
+						`.area-hatch[data-area-id="${area.id}"]`
+					);
+					if (shouldAnimateEntrance) hatchEl.style('opacity', 0);
+					if (hiddenAreaIdsRef.current?.has(area.id))
+						hatchEl.style('display', 'none');
+				}
+
+				// Label — sits on the hull edge, rotated to follow it
+				if (area.label && hull) {
+					const lt = getLabelTransform(hull, labelPos);
+					areaGroup
+						.append('text')
+						.attr('class', 'area-label')
+						.attr(
+							'transform',
+							`translate(${lt.x},${lt.y}) rotate(${lt.rotate})`
+						)
+						.attr('text-anchor', lt.anchor)
+						.attr('dominant-baseline', 'central')
+						.attr('font-size', '12px')
+						.attr('font-weight', '600')
+						.attr('font-style', 'italic')
+						.attr('fill', border)
+						.attr('pointer-events', 'none')
+						.text(area.label);
+				}
+
+				// Click handler
+				areaGroup.on('click', function (event) {
+					event.stopPropagation();
+					// Clear node selection
+					selectedIdsRef.current = new Set();
+					clearSelectionRef.current();
+					onSelectionChangeRef.current?.(null);
+					// Apply area selection
+					applyAreaSelectionRef.current(area.id);
+					onAreaSelectRef.current?.(area);
+				});
+			}
+
+			drawnAreasRef.current = {
+				areas: graphData.areas,
+				overrides: areaOverridesRef.current
+			};
+		}, []);
+
 		// ── Draw graph ────────────────────────────────────────────────────
 		useEffect(() => {
+			const graphData = graphDataRef.current;
 			if (!graphData || !gRef.current) return;
 
 			const g = d3.select(gRef.current);
@@ -1013,108 +1131,9 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				});
 			}
 
-			// ── Areas ─────────────────────────────────────────────────────
+			drawAreas(shouldAnimateEntrance);
 			const areasLayer = g.select('.areas-layer');
 			const areasHatchLayer = g.select('.areas-hatch-layer');
-			areasLayer.selectAll('*').remove();
-			areasHatchLayer.selectAll('*').remove();
-
-			for (const area of graphData.areas ?? []) {
-				const ov = areaOverridesRef.current?.get(area.id);
-				const effectiveNodeIds = ov?.nodes ?? area.nodeIds;
-				const memberNodes = effectiveNodeIds
-					.map((id) => nodeMap.get(id))
-					.filter((n): n is NodePos => n !== undefined);
-				if (memberNodes.length === 0) continue;
-
-				const fill = ov?.fill ?? area.fillColor ?? '#F5F5F5';
-				const border = ov?.border ?? area.borderColor ?? '#374151';
-				const rawHatch =
-					ov?.hatch !== undefined ? ov.hatch : area.hatch;
-				const effectiveHatch =
-					rawHatch === 'none' ? undefined : rawHatch;
-				const labelPos =
-					ov?.labelPosition ?? area.labelPosition ?? 'top-left';
-
-				const areaGroup = areasLayer
-					.append('g')
-					.attr('class', 'area-group')
-					.attr('data-area-id', area.id)
-					.style('cursor', 'pointer');
-
-				// Per-element animation initial state
-				if (shouldAnimateEntrance) areaGroup.style('opacity', 0);
-				// Preserve per-area hidden state across layout switches
-				if (hiddenAreaIdsRef.current?.has(area.id))
-					areaGroup.style('display', 'none');
-
-				// Compute hull once for both shape and label
-				const hull = computeHull(effectiveNodeIds, nodeMap);
-				const hullPath = hull ? hullToPath(hull) : null;
-
-				// Shape — always solid fill; hatch goes to overlay layer above nodes
-				const isSelectedArea = selectedAreaIdRef.current === area.id;
-				areaGroup
-					.append('path')
-					.attr('class', 'area-shape')
-					.attr('data-base-stroke', border)
-					.attr('d', hullPath ?? '')
-					.attr('fill', fill)
-					.attr('stroke', isSelectedArea ? '#9b2e23' : border)
-					.attr('stroke-width', isSelectedArea ? 2.5 : 1.5)
-					.attr('stroke-dasharray', null);
-
-				// Hatch overlay — rendered above nodes in areas-hatch-layer
-				if (effectiveHatch && defsRef.current && hull && hullPath) {
-					buildAreaHatchOverlay(
-						areasHatchLayer,
-						defsRef.current,
-						area.id,
-						hull,
-						hullPath,
-						effectiveHatch,
-						darkenColor(border, 0.35)
-					);
-					const hatchEl = areasHatchLayer.select(
-						`.area-hatch[data-area-id="${area.id}"]`
-					);
-					if (shouldAnimateEntrance) hatchEl.style('opacity', 0);
-					if (hiddenAreaIdsRef.current?.has(area.id))
-						hatchEl.style('display', 'none');
-				}
-
-				// Label — sits on the hull edge, rotated to follow it
-				if (area.label && hull) {
-					const lt = getLabelTransform(hull, labelPos);
-					areaGroup
-						.append('text')
-						.attr('class', 'area-label')
-						.attr(
-							'transform',
-							`translate(${lt.x},${lt.y}) rotate(${lt.rotate})`
-						)
-						.attr('text-anchor', lt.anchor)
-						.attr('dominant-baseline', 'central')
-						.attr('font-size', '12px')
-						.attr('font-weight', '600')
-						.attr('font-style', 'italic')
-						.attr('fill', border)
-						.attr('pointer-events', 'none')
-						.text(area.label);
-				}
-
-				// Click handler
-				areaGroup.on('click', function (event) {
-					event.stopPropagation();
-					// Clear node selection
-					selectedIdsRef.current = new Set();
-					clearSelectionRef.current();
-					onSelectionChangeRef.current?.(null);
-					// Apply area selection
-					applyAreaSelectionRef.current(area.id);
-					onAreaSelectRef.current?.(area);
-				});
-			}
 
 			// ── Loopback arcs ──────────────────────────────────────────────
 			const loopbackLayer = g.select('.loopback-layer');
@@ -1575,7 +1594,9 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				fitView(false);
 			}
 		}, [
-			graphData,
+			graphData.nodes,
+			graphData.edges,
+			drawAreas,
 			activeLayout,
 			showLoopbacks,
 			showNormalEdges,
@@ -1634,86 +1655,14 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 			});
 		}, [colorOverrides]);
 
-		// ── Area overrides effect ─────────────────────────────────────────
+		// Area edits update their own SVG layers without rebuilding nodes or fitting the view.
 		useEffect(() => {
-			if (!gRef.current) return;
-			const g = d3.select(gRef.current);
-			const hatchLayer = g.select('.areas-hatch-layer');
-			g.selectAll<SVGGElement, unknown>('.area-group').each(function () {
-				const areaId = (this as Element).getAttribute('data-area-id');
-				if (!areaId) return;
-				const area = graphDataRef.current?.areas?.find(
-					(a) => a.id === areaId
-				);
-				if (!area) return;
-				const ov = areaOverrides?.get(areaId);
-				const shape = d3
-					.select(this)
-					.select<SVGPathElement>('.area-shape');
-				if (shape.empty()) return;
-
-				// Recompute hull (handles membership changes too)
-				const effectiveIds = ov?.nodes ?? area.nodeIds;
-				const hull = computeHull(effectiveIds, nodePosRef.current);
-				const hullPath = hull ? hullToPath(hull) : null;
-				if (hullPath) shape.attr('d', hullPath);
-
-				if (!ov) return;
-
-				const baseBorder = shape.attr('data-base-stroke') ?? '#374151';
-				const effectiveFill = ov.fill ?? area.fillColor ?? '#F5F5F5';
-				const effectiveBorder = ov.border ?? baseBorder;
-				const rawHatch = ov.hatch !== undefined ? ov.hatch : area.hatch;
-				const effectiveHatch =
-					rawHatch === 'none' ? undefined : rawHatch;
-
-				shape.attr('data-base-stroke', effectiveBorder);
-				const isSelected = selectedAreaIdRef.current === areaId;
-				shape.attr('stroke', isSelected ? '#9b2e23' : effectiveBorder);
-				// Area shape fill is always solid — hatch is in overlay layer
-				shape.attr('fill', effectiveFill);
-
-				// Update hatch overlay in areas-hatch-layer
-				if (effectiveHatch && defsRef.current && hull && hullPath) {
-					buildAreaHatchOverlay(
-						hatchLayer,
-						defsRef.current,
-						areaId,
-						hull,
-						hullPath,
-						effectiveHatch,
-						darkenColor(effectiveBorder, 0.35)
-					);
-					// buildAreaHatchOverlay replaces the DOM element, so the
-					// display:none set by the visibility effect is lost.
-					// Re-apply hidden state from the current ref value.
-					if (hiddenAreaIdsRef.current?.has(areaId)) {
-						hatchLayer
-							.select(`.area-hatch[data-area-id="${areaId}"]`)
-							.style('display', 'none');
-					}
-				} else if (defsRef.current) {
-					removeAreaHatchOverlay(hatchLayer, defsRef.current, areaId);
-				}
-
-				// Update label position along hull edge
-				if (ov.labelPosition !== undefined && hull) {
-					const labelEl = d3
-						.select(this)
-						.select<SVGTextElement>('.area-label');
-					if (!labelEl.empty()) {
-						const lt = getLabelTransform(hull, ov.labelPosition);
-						labelEl
-							.attr(
-								'transform',
-								`translate(${lt.x},${lt.y}) rotate(${lt.rotate})`
-							)
-							.attr('text-anchor', lt.anchor)
-							.attr('dominant-baseline', 'central');
-					}
-				}
-			});
-		}, [areaOverrides]);
+			if (
+				drawnAreasRef.current?.areas !== graphData.areas ||
+				drawnAreasRef.current?.overrides !== areaOverrides
+			)
+				drawAreas();
+		}, [graphData.areas, areaOverrides, drawAreas]);
 
 		// ── Areas visibility ──────────────────────────────────────────────
 		useEffect(() => {

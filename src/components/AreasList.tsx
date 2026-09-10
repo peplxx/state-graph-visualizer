@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Trash2, MousePointer2 } from 'lucide-react';
 import type { GraphArea } from '../types/graph';
 import type { AreaOverride } from './graphViewer';
 
@@ -9,6 +9,8 @@ interface Props {
 	selectedAreaId?: string;
 	hiddenAreaIds?: Set<string>;
 	onAreaSelect: (area: GraphArea) => void;
+	onDeleteArea: (areaId: string) => void;
+	onSelectAreaNodes: (areaId: string) => void;
 	onToggleAreaVisibility?: (areaId: string) => void;
 }
 
@@ -18,6 +20,8 @@ export const AreasList: React.FC<Props> = ({
 	selectedAreaId,
 	hiddenAreaIds,
 	onAreaSelect,
+	onDeleteArea,
+	onSelectAreaNodes,
 	onToggleAreaVisibility
 }) => {
 	if (areas.length === 0) return null;
@@ -53,6 +57,16 @@ export const AreasList: React.FC<Props> = ({
 								{area.label ?? area.id}
 							</span>
 						</button>
+						<button
+							type="button"
+							className="areas-list-eye"
+							aria-label={`Select nodes in ${area.label ?? area.id}`}
+							title="Select area nodes"
+							disabled={(ov?.nodes ?? area.nodeIds).length === 0}
+							onClick={() => onSelectAreaNodes(area.id)}
+						>
+							<MousePointer2 size={12} />
+						</button>
 						{onToggleAreaVisibility && (
 							<button
 								className="areas-list-eye"
@@ -69,7 +83,16 @@ export const AreasList: React.FC<Props> = ({
 									<Eye size={12} />
 								)}
 							</button>
-						)}
+						)}{' '}
+						<button
+							type="button"
+							className="areas-list-eye areas-list-delete"
+							aria-label={`Delete ${area.label ?? area.id}`}
+							title="Delete area"
+							onClick={() => onDeleteArea(area.id)}
+						>
+							<Trash2 size={12} />
+						</button>
 					</div>
 				);
 			})}

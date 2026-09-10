@@ -8,13 +8,15 @@ import type {
 } from '../types/graph';
 import {
 	X,
+	Eye,
+	EyeOff,
+	Trash2,
+	MousePointer2,
 	ArrowUp,
 	ArrowDown,
 	Minus,
 	RotateCcw,
-	MousePointer2,
 	Layers,
-	Trash2,
 	Timer,
 	Hourglass,
 	ChevronRight,
@@ -67,6 +69,7 @@ interface ColorOverride {
 }
 
 interface AreaOverride {
+	nodes?: string[];
 	fill?: string;
 	border?: string;
 	hatch?: HatchStyle;
@@ -98,6 +101,12 @@ interface Props {
 	) => void;
 	// Area selection mode
 	selectedArea?: GraphArea;
+	areaActions?: {
+		hidden: boolean;
+		selectNodes: () => void;
+		toggleVisibility: () => void;
+		remove: () => void;
+	};
 	areaOverride?: AreaOverride;
 	allAreas?: GraphArea[];
 	onAreaColorChange?: (
@@ -106,12 +115,10 @@ interface Props {
 		hatch?: HatchStyle | null
 	) => void;
 	onAreaLabelPositionChange?: (pos: LabelPosition) => void;
-	onSelectAreaNodes?: () => void;
 	onAssignNodeToArea?: (areaId: string | null) => void;
 	onCreateArea?: (nodeIds: string[]) => void;
 	onAssignGroupToArea?: (nodeIds: string[], areaId: string | null) => void;
 	onAreaLabelChange?: (label: string) => void;
-	onDeleteArea?: () => void;
 	// Common
 	onClose: () => void;
 }
@@ -424,16 +431,15 @@ export const Sidebar: React.FC<Props> = ({
 	colorOverrides,
 	onColorChange,
 	selectedArea,
+	areaActions,
 	areaOverride,
 	allAreas,
 	onAreaColorChange,
 	onAreaLabelPositionChange,
-	onSelectAreaNodes,
 	onAssignNodeToArea,
 	onCreateArea,
 	onAssignGroupToArea,
-	onAreaLabelChange,
-	onDeleteArea
+	onAreaLabelChange
 }) => {
 	// All hooks must be at top level (before any early returns).
 	// Sidebar is keyed by area id in App.tsx so this reinitializes on area change.
@@ -476,6 +482,7 @@ export const Sidebar: React.FC<Props> = ({
 
 	// ── Area panel ──────────────────────────────────────────────────────
 	if (selectedArea) {
+		const memberIds = areaOverride?.nodes ?? selectedArea.nodeIds;
 		const aFill = areaOverride?.fill ?? selectedArea.fillColor ?? '#F5F5F5';
 		const aBorder =
 			areaOverride?.border ?? selectedArea.borderColor ?? '#374151';
@@ -503,14 +510,49 @@ export const Sidebar: React.FC<Props> = ({
 							justifyContent: 'flex-end'
 						}}
 					>
-						{onDeleteArea && (
-							<button
-								className="sidebar-close sidebar-delete"
-								onClick={onDeleteArea}
-								title="Delete area"
-							>
-								<Trash2 size={14} />
-							</button>
+						{areaActions && (
+							<>
+								<button
+									type="button"
+									className="sidebar-close"
+									title="Select area nodes"
+									aria-label="Select area nodes"
+									disabled={!memberIds.length}
+									onClick={areaActions.selectNodes}
+								>
+									<MousePointer2 size={14} />
+								</button>
+								<button
+									type="button"
+									className="sidebar-close"
+									title={
+										areaActions.hidden
+											? 'Show area'
+											: 'Hide area'
+									}
+									aria-label={
+										areaActions.hidden
+											? 'Show area'
+											: 'Hide area'
+									}
+									onClick={areaActions.toggleVisibility}
+								>
+									{areaActions.hidden ? (
+										<EyeOff size={14} />
+									) : (
+										<Eye size={14} />
+									)}
+								</button>
+								<button
+									type="button"
+									className="sidebar-close sidebar-delete"
+									title="Delete area"
+									aria-label="Delete area"
+									onClick={areaActions.remove}
+								>
+									<Trash2 size={14} />
+								</button>
+							</>
 						)}
 						<button className="sidebar-close" onClick={onClose}>
 							<X size={16} />
@@ -525,19 +567,22 @@ export const Sidebar: React.FC<Props> = ({
 					<div className="detail-row">
 						<span className="detail-label">Nodes</span>
 						<span className="badge badge-group">
-							{selectedArea.nodeIds.length}
+							{memberIds.length}
 						</span>
 					</div>
-					{onSelectAreaNodes && (
-						<button
-							className="area-select-nodes-btn"
-							type="button"
-							onClick={onSelectAreaNodes}
-						>
-							<MousePointer2 size={13} />
-							Select nodes
-						</button>
-					)}
+					<div className="selection-id-list" aria-label="Area nodes">
+						{memberIds.length ? (
+							memberIds.map((id) => (
+								<code key={id} className="detail-value">
+									{id}
+								</code>
+							))
+						) : (
+							<span className="detail-label">
+								No nodes in this area
+							</span>
+						)}
+					</div>
 
 					<h4 className="section-title">Label</h4>
 					<input
@@ -718,7 +763,7 @@ export const Sidebar: React.FC<Props> = ({
 
 						{onCreateArea && (
 							<button
-								className="area-select-nodes-btn"
+								className="area-select-nodes-btn area-create-btn"
 								type="button"
 								onClick={() => onCreateArea(nodeIds)}
 							>
@@ -1053,7 +1098,7 @@ export const Sidebar: React.FC<Props> = ({
 
 						{onCreateArea && (
 							<button
-								className="area-select-nodes-btn"
+								className="area-select-nodes-btn area-create-btn"
 								type="button"
 								onClick={() => onCreateArea(nodeIds)}
 							>

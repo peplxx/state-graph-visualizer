@@ -1097,6 +1097,17 @@ body,
 		border-color 0.12s,
 		box-shadow 0.12s;
 }
+.area-create-btn {
+	width: 260px;
+	max-width: 100%;
+	min-height: 32px;
+	height: auto;
+	padding: 6px 12px;
+	text-align: left;
+}
+.area-create-btn > svg {
+	flex-shrink: 0;
+}
 .area-select-nodes-btn:hover {
 	background: var(--toolbar-control-hover);
 	border-color: #bcc2c8;
@@ -2246,4 +2257,21 @@ button:focus-visible,
 }
 .workspace-tab.is-active .workspace-tab-icon {
 	opacity: 1;
+}
+.areas-list-item:focus-within .areas-list-eye {
+	opacity: 1;
+}
+.areas-list-eye:disabled {
+	cursor: default;
+	color: var(--text-muted);
+	opacity: 0.3;
+}
+.areas-list-delete:hover {
+	color: #9b2e23 !important;
+	background: #9b2e230d;
+}
+@media (hover: none) {
+	.areas-list-eye {
+		opacity: 1;
+	}
 }
