@@ -34,6 +34,7 @@ export interface WindowProps<S> {
 }
 export interface WindowDefinition<S> {
 	label: string;
+	Icon: import('lucide-react').LucideIcon;
 	create: () => S;
 	validate: (value: unknown) => S;
 	Component: ComponentType<WindowProps<S>>;

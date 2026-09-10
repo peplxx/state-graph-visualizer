@@ -1,4 +1,5 @@
 import { lazy } from 'react';
+import { PanelsTopLeft } from 'lucide-react';
 import {
 	createExplorerState,
 	explorerStateSchema,
@@ -18,6 +19,7 @@ export const windowRegistry: {
 } = {
 	explorer: {
 		label: 'Explorer',
+		Icon: PanelsTopLeft,
 		create: createExplorerState,
 		validate: (value) => explorerStateSchema.parse(value),
 		Component: ExplorerWindow,

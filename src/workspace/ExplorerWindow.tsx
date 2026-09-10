@@ -1,3 +1,4 @@
+import { SystemConfigPanel } from '../components/SystemConfigPanel';
 import { Download, Save } from 'lucide-react';
 import React, {
 	useCallback,
@@ -70,6 +71,9 @@ export function ExplorerWindow({
 		null
 	);
 	const [error, setError] = useState<string | null>(null);
+	const [showSystemConfig, setShowSystemConfig] = useState(
+		initial.showSystemConfig
+	);
 	const [showLegend, setShowLegend] = useState(initial.showLegend);
 	const [showDeadlineBadges, setShowDeadlineBadges] = useState(
 		initial.showDeadlineBadges
@@ -345,6 +349,7 @@ export function ExplorerWindow({
 	// Sidebar state
 	const [sidebarTick, setSidebarTick] = useState(0);
 	const [sidebarOpen, setSidebarOpen] = useState(initial.sidebarOpen);
+	const [scheduleOpen, setScheduleOpen] = useState(initial.scheduleOpen);
 	const [appearanceOpen, setAppearanceOpen] = useState(
 		initial.appearanceOpen
 	);
@@ -395,6 +400,7 @@ export function ExplorerWindow({
 			showNormalEdges,
 			enableAnimation,
 			showLegend,
+			showSystemConfig,
 			showDeadlineBadges,
 			showAreas,
 			hiddenAreaIds,
@@ -404,6 +410,7 @@ export function ExplorerWindow({
 			selectedAreaId: selectedArea?.id ?? null,
 			sidebarOpen,
 			appearanceOpen,
+			scheduleOpen,
 			sidebarWidth,
 			showDeadlines,
 			showRemainingWork,
@@ -421,6 +428,7 @@ export function ExplorerWindow({
 			showNormalEdges,
 			enableAnimation,
 			showLegend,
+			showSystemConfig,
 			showDeadlineBadges,
 			showAreas,
 			hiddenAreaIds,
@@ -430,6 +438,7 @@ export function ExplorerWindow({
 			selectedArea,
 			sidebarOpen,
 			appearanceOpen,
+			scheduleOpen,
 			sidebarWidth,
 			showDeadlines,
 			showRemainingWork,
@@ -447,7 +456,7 @@ export function ExplorerWindow({
 			.forEach((el) => {
 				el.scrollLeft = scheduleScrollRef.current;
 			});
-	}, [sidebarTick, documentId]);
+	}, [sidebarTick, documentId, scheduleOpen]);
 	const saveDocument = () => {
 		try {
 			setBaselineYaml(explorerYaml(snapshot));
@@ -519,6 +528,10 @@ export function ExplorerWindow({
 					<ViewOptionsMenu
 						animation={enableAnimation}
 						legend={showLegend}
+						systemConfig={showSystemConfig}
+						onSystemConfigChange={() =>
+							setShowSystemConfig((v) => !v)
+						}
 						deadlineBadges={showDeadlineBadges}
 						onAnimationChange={() => setEnableAnimation((v) => !v)}
 						onLegendChange={() => setShowLegend((v) => !v)}
@@ -602,12 +615,16 @@ export function ExplorerWindow({
 					onScrollChange={setSidebarScroll}
 					visible={Boolean(
 						showLegend ||
+						(showSystemConfig && graphData?.system) ||
 						sidebarOpen ||
 						selectedArea ||
 						graphData?.areas?.length
 					)}
 				>
 					{showLegend && <Legend />}
+					{showSystemConfig && graphData?.system && (
+						<SystemConfigPanel system={graphData.system} />
+					)}
 					{graphData?.areas && graphData.areas.length > 0 && (
 						<AreasList
 							areas={graphData.areas}
@@ -624,6 +641,8 @@ export function ExplorerWindow({
 							setShowDeadlines={setShowDeadlines}
 							showRemainingWork={showRemainingWork}
 							setShowRemainingWork={setShowRemainingWork}
+							scheduleOpen={scheduleOpen}
+							onScheduleOpenChange={setScheduleOpen}
 							appearanceOpen={appearanceOpen}
 							onAppearanceOpenChange={setAppearanceOpen}
 							key={

@@ -58,9 +58,6 @@ export function ScheduleComparison({
 	return (
 		<section className="schedule-comparison">
 			<div className="sched-section-header">
-				<h4 className="section-title" style={{ margin: 0 }}>
-					Schedules
-				</h4>
 				<div className="sched-controls">
 					<button
 						type="button"

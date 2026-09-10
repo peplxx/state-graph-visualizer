@@ -78,6 +78,8 @@ interface Props {
 	setShowDeadlines: React.Dispatch<React.SetStateAction<boolean>>;
 	showRemainingWork: boolean;
 	setShowRemainingWork: React.Dispatch<React.SetStateAction<boolean>>;
+	scheduleOpen: boolean;
+	onScheduleOpenChange: (open: boolean) => void;
 	appearanceOpen: boolean;
 	onAppearanceOpenChange: (open: boolean) => void;
 	// Node selection mode
@@ -358,10 +360,12 @@ const LabelPositionPicker: React.FC<{
 );
 
 function AppearanceSection({
+	title = 'Appearance',
 	open,
 	onOpenChange,
 	children
 }: {
+	title?: string;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	children: React.ReactNode;
@@ -382,11 +386,21 @@ function AppearanceSection({
 						aria-hidden="true"
 						className={open ? 'is-open' : undefined}
 					/>
-					Appearance
+					{title}
 				</button>
 			</h4>
 			<div id={id} hidden={!open}>
-				{open && <div className="appearance-section">{children}</div>}
+				{open && (
+					<div
+						className={
+							title === 'Appearance'
+								? 'appearance-section'
+								: undefined
+						}
+					>
+						{children}
+					</div>
+				)}
 			</div>
 		</>
 	);
@@ -399,6 +413,8 @@ export const Sidebar: React.FC<Props> = ({
 	setShowDeadlines,
 	showRemainingWork,
 	setShowRemainingWork,
+	scheduleOpen,
+	onScheduleOpenChange,
 	appearanceOpen,
 	onAppearanceOpenChange,
 	selection,
@@ -831,14 +847,12 @@ export const Sidebar: React.FC<Props> = ({
 
 						{/* ── Scheduling diagram ──────────────────────── */}
 						{systemConfig && nodePath && (
-							<>
+							<AppearanceSection
+								title="Schedule"
+								open={scheduleOpen}
+								onOpenChange={onScheduleOpenChange}
+							>
 								<div className="sched-section-header">
-									<h4
-										className="section-title"
-										style={{ margin: 0 }}
-									>
-										Schedule
-									</h4>
 									<div className="sched-controls">
 										<button
 											className={`sched-toggle-btn${showDeadlines ? ' is-active' : ''}`}
@@ -901,38 +915,12 @@ export const Sidebar: React.FC<Props> = ({
 										showRemainingWork={showRemainingWork}
 									/>
 								)}
-							</>
+							</AppearanceSection>
 						)}
 						{!nodePath && graphData && systemConfig && (
 							<p className="sched-no-path">
 								No path from initial state
 							</p>
-						)}
-
-						{systemConfig && (
-							<>
-								<h4 className="section-title">System Config</h4>
-								{systemConfig.tasks.map((t, i) => (
-									<div className="detail-row" key={i}>
-										<span className="detail-label">
-											τ<sub>{i + 1}</sub>
-										</span>
-										<code className="detail-value">
-											({t.c},{t.d})
-										</code>
-									</div>
-								))}
-								{systemConfig.m !== undefined && (
-									<div className="detail-row">
-										<span className="detail-label">
-											Processors
-										</span>
-										<code className="detail-value">
-											m = {systemConfig.m}
-										</code>
-									</div>
-								)}
-							</>
 						)}
 
 						<h4 className="section-title">Connectivity</h4>
@@ -1126,20 +1114,26 @@ export const Sidebar: React.FC<Props> = ({
 						{graphData &&
 							systemConfig &&
 							systemConfig.tasks.length > 0 && (
-								<ScheduleComparison
-									nodeIds={nodeIds}
-									graph={graphData}
-									colorOverrides={colorOverrides}
-									system={systemConfig}
-									showDeadlines={showDeadlines}
-									showRemainingWork={showRemainingWork}
-									onDeadlinesChange={() =>
-										setShowDeadlines((v) => !v)
-									}
-									onRemainingWorkChange={() =>
-										setShowRemainingWork((v) => !v)
-									}
-								/>
+								<AppearanceSection
+									title="Schedules"
+									open={scheduleOpen}
+									onOpenChange={onScheduleOpenChange}
+								>
+									<ScheduleComparison
+										nodeIds={nodeIds}
+										graph={graphData}
+										colorOverrides={colorOverrides}
+										system={systemConfig}
+										showDeadlines={showDeadlines}
+										showRemainingWork={showRemainingWork}
+										onDeadlinesChange={() =>
+											setShowDeadlines((v) => !v)
+										}
+										onRemainingWorkChange={() =>
+											setShowRemainingWork((v) => !v)
+										}
+									/>
+								</AppearanceSection>
 							)}
 
 						<h4 className="section-title">Selected IDs</h4>

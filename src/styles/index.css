@@ -1577,7 +1577,7 @@ button:focus-visible,
 .workspace-tab.is-active .workspace-tab-button {
 	color: var(--text);
 }
-.workspace-tab-button > span:first-child {
+.workspace-tab-title {
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
@@ -2238,4 +2238,12 @@ button:focus-visible,
 }
 .workspace-notice button:hover {
 	background: #00000008;
+}
+
+.workspace-tab-icon {
+	flex-shrink: 0;
+	opacity: 0.75;
+}
+.workspace-tab.is-active .workspace-tab-icon {
+	opacity: 1;
 }

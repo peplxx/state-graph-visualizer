@@ -190,7 +190,18 @@ export function WorkspaceTabs({
 									}
 								}}
 							>
-								<span>{tab.title}</span>
+								{React.createElement(
+									getWindowDefinition(tab.kind).Icon,
+									{
+										size: 13,
+										strokeWidth: 1.7,
+										className: 'workspace-tab-icon',
+										'aria-hidden': true
+									}
+								)}
+								<span className="workspace-tab-title">
+									{tab.title}
+								</span>
 								{getWindowDefinition(tab.kind).dirty(
 									tab.state
 								) && (
