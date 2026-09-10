@@ -27,6 +27,8 @@ jobs:
                       script: lint
                     - name: Formatting
                       script: fmt:check
+                    - name: Validate example graphs
+                      script: schema:validate examples
         steps:
             - uses: actions/checkout@v4
               with:

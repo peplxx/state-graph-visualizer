@@ -1,0 +1,249 @@
+schemaVersion: 1
+system:
+  description: GFP reachability graph
+  m: 1
+  tasks:
+    - {c: 2, d: 5, name: τ1}
+    - {c: 3, d: 7, name: τ2}
+nodes:
+  - id: n0
+    initial: true
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 0}
+    children: [n1, n2, n3]
+  - id: n1
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 3, d: 7, release: up}
+    children: [n4, n5]
+  - id: n2
+    tasks:
+      - {c: 2, d: 5, release: up}
+      - {c: 0, d: 0}
+    children: [n6, n7]
+  - id: n3
+    tasks:
+      - {c: 2, d: 5, release: up}
+      - {c: 3, d: 7, release: up}
+    children: [n8]
+  - id: n4
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 2, d: 6}
+    children: [n9, n10]
+  - id: n5
+    tasks:
+      - {c: 2, d: 5, release: up}
+      - {c: 2, d: 6}
+    children: [n11]
+  - id: n6
+    tasks:
+      - {c: 1, d: 4}
+      - {c: 0, d: 0}
+    children: [n12, n13]
+  - id: n7
+    tasks:
+      - {c: 1, d: 4}
+      - {c: 3, d: 7, release: up}
+    children: [n14]
+  - id: n8
+    tasks:
+      - {c: 1, d: 4}
+      - {c: 3, d: 6}
+    children: [n15]
+  - id: n9
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 1, d: 5}
+    children: [n16, n17]
+  - id: n10
+    tasks:
+      - {c: 2, d: 5, release: up}
+      - {c: 1, d: 5}
+    children: [n18]
+  - id: n11
+    tasks:
+      - {c: 1, d: 4}
+      - {c: 2, d: 5}
+    children: [n19]
+  - id: n12
+    tasks:
+      - {c: 0, d: 3, release: down}
+      - {c: 0, d: 0}
+    children: [n20, n21]
+  - id: n13
+    tasks:
+      - {c: 0, d: 3, release: down}
+      - {c: 3, d: 7, release: up}
+    children: [n22]
+  - id: n14
+    tasks:
+      - {c: 0, d: 3, release: down}
+      - {c: 3, d: 6}
+    children: [n23]
+  - id: n15
+    tasks:
+      - {c: 0, d: 3, release: down}
+      - {c: 3, d: 5}
+    children: [n24]
+  - id: n16
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 4, release: down}
+    children: [n25, n26]
+  - id: n17
+    tasks:
+      - {c: 2, d: 5, release: up}
+      - {c: 0, d: 4, release: down}
+    children: [n27]
+  - id: n18
+    tasks:
+      - {c: 1, d: 4}
+      - {c: 1, d: 4}
+    children: [n28]
+  - id: n19
+    tasks:
+      - {c: 0, d: 3, release: down}
+      - {c: 2, d: 4}
+    children: [n29]
+  - id: n20
+    tasks:
+      - {c: 0, d: 2}
+      - {c: 0, d: 0}
+    children: [n30, n31]
+  - id: n21
+    tasks:
+      - {c: 0, d: 2}
+      - {c: 3, d: 7, release: up}
+    children: [n32]
+  - id: n22
+    tasks:
+      - {c: 0, d: 2}
+      - {c: 2, d: 6}
+    children: [n33]
+  - id: n23
+    tasks:
+      - {c: 0, d: 2}
+      - {c: 2, d: 5}
+    children: [n34]
+  - id: n24
+    tasks:
+      - {c: 0, d: 2}
+      - {c: 2, d: 4}
+    children: [n35]
+  - id: n25
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 3}
+    children: [n36, n37]
+  - id: n26
+    tasks:
+      - {c: 2, d: 5, release: up}
+      - {c: 0, d: 3}
+    children: [n38]
+  - id: n27
+    tasks:
+      - {c: 1, d: 4}
+      - {c: 0, d: 3}
+    children: [n39]
+  - id: n28
+    tasks:
+      - {c: 0, d: 3, release: down}
+      - {c: 1, d: 3}
+    children: [n40]
+  - id: n29
+    tasks:
+      - {c: 0, d: 2}
+      - {c: 1, d: 3}
+    children: [n41]
+  - id: n30
+    tasks:
+      - {c: 0, d: 1}
+      - {c: 0, d: 0}
+    loopback: [n1, n2, n3]
+  - id: n31
+    tasks:
+      - {c: 0, d: 1}
+      - {c: 3, d: 7, release: up}
+    loopback: [n4, n5]
+  - id: n32
+    tasks:
+      - {c: 0, d: 1}
+      - {c: 2, d: 6}
+    loopback: [n9, n10]
+  - id: n33
+    tasks:
+      - {c: 0, d: 1}
+      - {c: 1, d: 5}
+    loopback: [n16, n17]
+  - id: n34
+    tasks:
+      - {c: 0, d: 1}
+      - {c: 1, d: 4}
+    loopback: [n25, n26]
+  - id: n35
+    tasks:
+      - {c: 0, d: 1}
+      - {c: 1, d: 3}
+    loopback: [n36, n37]
+  - id: n36
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 2}
+    children: [n42, n43]
+  - id: n37
+    tasks:
+      - {c: 2, d: 5, release: up}
+      - {c: 0, d: 2}
+    children: [n44]
+  - id: n38
+    tasks:
+      - {c: 1, d: 4}
+      - {c: 0, d: 2}
+    children: [n45]
+  - id: n39
+    tasks:
+      - {c: 0, d: 3, release: down}
+      - {c: 0, d: 2}
+    children: [n46]
+  - id: n40
+    tasks:
+      - {c: 0, d: 2}
+      - {c: 0, d: 2, release: down}
+    children: [n47]
+  - id: n41
+    tasks:
+      - {c: 0, d: 1}
+      - {c: 0, d: 2, release: down}
+    loopback: [n42, n43]
+  - id: n42
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 1}
+    loopback: [n1, n2, n3]
+  - id: n43
+    tasks:
+      - {c: 2, d: 5, release: up}
+      - {c: 0, d: 1}
+    loopback: [n6, n7]
+  - id: n44
+    tasks:
+      - {c: 1, d: 4}
+      - {c: 0, d: 1}
+    loopback: [n12, n13]
+  - id: n45
+    tasks:
+      - {c: 0, d: 3, release: down}
+      - {c: 0, d: 1}
+    loopback: [n20, n21]
+  - id: n46
+    tasks:
+      - {c: 0, d: 2}
+      - {c: 0, d: 1}
+    loopback: [n30, n31]
+  - id: n47
+    tasks:
+      - {c: 0, d: 1}
+      - {c: 0, d: 1}
+    loopback: [n1, n2, n3]

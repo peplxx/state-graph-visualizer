@@ -132,7 +132,7 @@ bun run schema:generate
 
 ```bash
 bun run schema:validate
-bun run schema:validate examples/simple-graph.yaml
+bun run schema:validate examples/gfp-m1-1-2-1-2.yaml
 ```
 
 Запускает JSON Schema-валидацию (AJV) + Zod-проверки на уровне графа: дубликаты `id`, несуществующие ссылки в `children`/`loopback`, несоответствие числа задач.
@@ -147,5 +147,10 @@ bun run schema:check
 
 ## Примеры
 
-- [`examples/simple-graph.yaml`](../examples/simple-graph.yaml) — простой граф, 2 задачи
-- [`examples/example-graph.yaml`](../examples/example-graph.yaml) — полный EDF граф достижимости
+Графы сгенерированы GFP-генератором libstgx без отсечения состояний. Пары задают `(c, d)`, порядок задач определяет фиксированный приоритет (первая — высший).
+
+- [`gfp-m1-1-2-1-2.yaml`](../examples/gfp-m1-1-2-1-2.yaml) — `m = 1`, задачи `(1, 2), (1, 2)`; 9 состояний.
+- [`gfp-m1-2-5-3-7.yaml`](../examples/gfp-m1-2-5-3-7.yaml) — `m = 1`, задачи `(2, 5), (3, 7)`; 48 состояний.
+- [`gfp-m2-1-2-2-3-3-4.yaml`](../examples/gfp-m2-1-2-2-3-3-4.yaml) — `m = 2`, задачи `(1, 2), (2, 3), (3, 4)`; 81 состояние, из них 5 с нарушением дедлайна.
+
+Кратко о генерации — в [`examples/README.md`](../examples/README.md).

@@ -23,7 +23,7 @@ Click **Create area from selection** to turn the group into a named visual regio
 
 ## Import and export
 
-Load YAML or JSON graphs. **Save YAML** preserves styling and areas for the next session; **Export** saves the graph as SVG. Try the [example shown above](examples/three-tasks-styled.yaml), browse more [examples](examples), or read the [YAML format documentation](docs/graph-format.md).
+Load YAML or JSON graphs. **Save YAML** preserves styling and areas for the next session; **Export** saves the graph as SVG. Browse the [examples](examples) or read the [YAML format documentation](docs/graph-format.md). The examples were generated with the [GFP tool in libstgx](https://github.com/peplxx/libstgx/tree/main/examples/gfp), using the parameters in each file with state pruning disabled.
 
 ## Run locally
 

@@ -44,9 +44,6 @@
           }
         }
       },
-      "required": [
-        "tasks"
-      ],
       "additionalProperties": false
     },
     "nodes": {
@@ -109,11 +106,6 @@
                   ]
                 }
               },
-              "required": [
-                "c",
-                "d",
-                "release"
-              ],
               "additionalProperties": false
             }
           },
@@ -237,15 +229,11 @@
           ]
         }
       },
-      "required": [
-        "algorithm"
-      ],
       "additionalProperties": false
     }
   },
   "required": [
-    "nodes",
-    "areas"
+    "nodes"
   ],
   "additionalProperties": false
 }

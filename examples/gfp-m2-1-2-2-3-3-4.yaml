@@ -1,0 +1,496 @@
+schemaVersion: 1
+system:
+  description: GFP reachability graph
+  m: 2
+  tasks:
+    - {c: 1, d: 2, name: τ1}
+    - {c: 2, d: 3, name: τ2}
+    - {c: 3, d: 4, name: τ3}
+nodes:
+  - id: n0
+    initial: true
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 0}
+      - {c: 0, d: 0}
+    children: [n1, n2, n3, n4, n5, n6, n7]
+  - id: n1
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 0}
+      - {c: 3, d: 4, release: up}
+    children: [n8, n9, n10, n11]
+  - id: n2
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 2, d: 3, release: up}
+      - {c: 0, d: 0}
+    children: [n12, n13, n14, n15]
+  - id: n3
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 2, d: 3, release: up}
+      - {c: 3, d: 4, release: up}
+    children: [n16, n17]
+  - id: n4
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 0}
+      - {c: 0, d: 0}
+    children: [n18, n19, n20, n21]
+  - id: n5
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 0}
+      - {c: 3, d: 4, release: up}
+    children: [n22, n23]
+  - id: n6
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 2, d: 3, release: up}
+      - {c: 0, d: 0}
+    children: [n24, n25]
+  - id: n7
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 2, d: 3, release: up}
+      - {c: 3, d: 4, release: up}
+    children: [n26]
+  - id: n8
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 0}
+      - {c: 2, d: 3}
+    children: [n27, n28, n29, n30]
+  - id: n9
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 2, d: 3, release: up}
+      - {c: 2, d: 3}
+    children: [n31, n32]
+  - id: n10
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 0}
+      - {c: 2, d: 3}
+    children: [n33, n34]
+  - id: n11
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 2, d: 3, release: up}
+      - {c: 2, d: 3}
+    children: [n35]
+  - id: n12
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 1, d: 2}
+      - {c: 0, d: 0}
+    children: [n36, n37, n38, n39]
+  - id: n13
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 1, d: 2}
+      - {c: 3, d: 4, release: up}
+    children: [n40, n41]
+  - id: n14
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 1, d: 2}
+      - {c: 0, d: 0}
+    children: [n42, n43]
+  - id: n15
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 1, d: 2}
+      - {c: 3, d: 4, release: up}
+    children: [n44]
+  - id: n16
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 1, d: 2}
+      - {c: 2, d: 3}
+    children: [n45, n46]
+  - id: n17
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 1, d: 2}
+      - {c: 2, d: 3}
+    children: [n47]
+  - id: n18
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 0}
+      - {c: 0, d: 0}
+    loopback: [n1, n2, n3, n4, n5, n6, n7]
+  - id: n19
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 0}
+      - {c: 3, d: 4, release: up}
+    loopback: [n8, n9, n10, n11]
+  - id: n20
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 2, d: 3, release: up}
+      - {c: 0, d: 0}
+    loopback: [n12, n13, n14, n15]
+  - id: n21
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 2, d: 3, release: up}
+      - {c: 3, d: 4, release: up}
+    loopback: [n16, n17]
+  - id: n22
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 0}
+      - {c: 2, d: 3}
+    loopback: [n27, n28, n29, n30]
+  - id: n23
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 2, d: 3, release: up}
+      - {c: 2, d: 3}
+    loopback: [n31, n32]
+  - id: n24
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 2}
+      - {c: 0, d: 0}
+    loopback: [n36, n37, n38, n39]
+  - id: n25
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 2}
+      - {c: 3, d: 4, release: up}
+    loopback: [n40, n41]
+  - id: n26
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 2}
+      - {c: 3, d: 3}
+    children: [n48, n49]
+  - id: n27
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 0}
+      - {c: 1, d: 2}
+    children: [n50, n51, n52, n53]
+  - id: n28
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 2, d: 3, release: up}
+      - {c: 1, d: 2}
+    children: [n54, n55]
+  - id: n29
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 0}
+      - {c: 1, d: 2}
+    children: [n56, n57]
+  - id: n30
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 2, d: 3, release: up}
+      - {c: 1, d: 2}
+    children: [n58]
+  - id: n31
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 1, d: 2}
+      - {c: 1, d: 2}
+    children: [n59, n60]
+  - id: n32
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 1, d: 2}
+      - {c: 1, d: 2}
+    children: [n61]
+  - id: n33
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 0}
+      - {c: 1, d: 2}
+    loopback: [n50, n51, n52, n53]
+  - id: n34
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 2, d: 3, release: up}
+      - {c: 1, d: 2}
+    loopback: [n54, n55]
+  - id: n35
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 2}
+      - {c: 2, d: 2}
+    children: [n62, n63]
+  - id: n36
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 0}
+    loopback: [n1, n2, n3, n4, n5, n6, n7]
+  - id: n37
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 1, release: down}
+      - {c: 3, d: 4, release: up}
+    loopback: [n8, n9, n10, n11]
+  - id: n38
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 0}
+    loopback: [n18, n19, n20, n21]
+  - id: n39
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 1, release: down}
+      - {c: 3, d: 4, release: up}
+    loopback: [n22, n23]
+  - id: n40
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 1, release: down}
+      - {c: 2, d: 3}
+    loopback: [n27, n28, n29, n30]
+  - id: n41
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 1, release: down}
+      - {c: 2, d: 3}
+    loopback: [n33, n34]
+  - id: n42
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 0}
+    loopback: [n1, n2, n3, n4, n5, n6, n7]
+  - id: n43
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 1, release: down}
+      - {c: 3, d: 4, release: up}
+    loopback: [n8, n9, n10, n11]
+  - id: n44
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 1, release: down}
+      - {c: 3, d: 3}
+    children: [n64, n65, n66, n67]
+  - id: n45
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 2}
+    loopback: [n50, n51, n52, n53]
+  - id: n46
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 2}
+    loopback: [n56, n57]
+  - id: n47
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 1, release: down}
+      - {c: 2, d: 2}
+    children: [n68, n69, n70, n71]
+  - id: n48
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 1, release: down}
+      - {c: 2, d: 2}
+    loopback: [n68, n69, n70, n71]
+  - id: n49
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 1, release: down}
+      - {c: 2, d: 2}
+    children: [n72, n73]
+  - id: n50
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 0}
+      - {c: 0, d: 1, release: down}
+    loopback: [n1, n2, n3, n4, n5, n6, n7]
+  - id: n51
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 2, d: 3, release: up}
+      - {c: 0, d: 1, release: down}
+    loopback: [n12, n13, n14, n15]
+  - id: n52
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 0}
+      - {c: 0, d: 1, release: down}
+    loopback: [n18, n19, n20, n21]
+  - id: n53
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 2, d: 3, release: up}
+      - {c: 0, d: 1, release: down}
+    loopback: [n24, n25]
+  - id: n54
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 1, d: 2}
+      - {c: 0, d: 1, release: down}
+    loopback: [n36, n37, n38, n39]
+  - id: n55
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 1, d: 2}
+      - {c: 0, d: 1, release: down}
+    loopback: [n42, n43]
+  - id: n56
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 0}
+      - {c: 0, d: 1, release: down}
+    loopback: [n1, n2, n3, n4, n5, n6, n7]
+  - id: n57
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 2, d: 3, release: up}
+      - {c: 0, d: 1, release: down}
+    loopback: [n12, n13, n14, n15]
+  - id: n58
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 2}
+      - {c: 1, d: 1}
+    loopback: [n36, n37, n38, n39]
+  - id: n59
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 1, release: down}
+    loopback: [n1, n2, n3, n4, n5, n6, n7]
+  - id: n60
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 1, release: down}
+    loopback: [n18, n19, n20, n21]
+  - id: n61
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 1}
+    loopback: [n1, n2, n3, n4, n5, n6, n7]
+  - id: n62
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 1}
+    loopback: [n1, n2, n3, n4, n5, n6, n7]
+  - id: n63
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 1}
+    loopback: [n18, n19, n20, n21]
+  - id: n64
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 0}
+      - {c: 2, d: 2}
+    loopback: [n68, n69, n70, n71]
+  - id: n65
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 2, d: 3, release: up}
+      - {c: 2, d: 2}
+    children: [n74, n75]
+  - id: n66
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 0}
+      - {c: 2, d: 2}
+    loopback: [n72, n73]
+  - id: n67
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 2, d: 3, release: up}
+      - {c: 2, d: 2}
+    children: [n76]
+  - id: n68
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 0}
+      - {c: 1, d: 1}
+    loopback: [n1, n2, n3, n4, n5, n6, n7]
+  - id: n69
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 2, d: 3, release: up}
+      - {c: 1, d: 1}
+    loopback: [n12, n13, n14, n15]
+  - id: n70
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 0}
+      - {c: 1, d: 1}
+    loopback: [n18, n19, n20, n21]
+  - id: n71
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 2, d: 3, release: up}
+      - {c: 1, d: 1}
+    children: [n77]
+  - id: n72
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 0}
+      - {c: 1, d: 1}
+    loopback: [n1, n2, n3, n4, n5, n6, n7]
+  - id: n73
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 2, d: 3, release: up}
+      - {c: 1, d: 1}
+    loopback: [n12, n13, n14, n15]
+  - id: n74
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 1, d: 2}
+      - {c: 1, d: 1}
+    loopback: [n36, n37, n38, n39]
+  - id: n75
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 1, d: 2}
+      - {c: 1, d: 1}
+    children: [n78]
+  - id: n76
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 2}
+      - {c: 2, d: 1}
+    children: [n79, n80]
+  - id: n77
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 2}
+      - {c: 1, d: 0}
+    loopback: [n36, n37, n38, n39]
+  - id: n78
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 0}
+    loopback: [n1, n2, n3, n4, n5, n6, n7]
+  - id: n79
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 0}
+    loopback: [n1, n2, n3, n4, n5, n6, n7]
+  - id: n80
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 0}
+    loopback: [n18, n19, n20, n21]

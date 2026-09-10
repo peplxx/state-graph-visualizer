@@ -1,0 +1,54 @@
+schemaVersion: 1
+system:
+  description: GFP reachability graph
+  m: 1
+  tasks:
+    - {c: 1, d: 2, name: τ1}
+    - {c: 1, d: 2, name: τ2}
+nodes:
+  - id: n0
+    initial: true
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 0}
+    children: [n1, n2, n3]
+  - id: n1
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 1, d: 2, release: up}
+    children: [n4, n5]
+  - id: n2
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 0}
+    children: [n6, n7]
+  - id: n3
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 1, d: 2, release: up}
+    children: [n8]
+  - id: n4
+    tasks:
+      - {c: 0, d: 0}
+      - {c: 0, d: 1, release: down}
+    loopback: [n1, n2, n3]
+  - id: n5
+    tasks:
+      - {c: 1, d: 2, release: up}
+      - {c: 0, d: 1, release: down}
+    loopback: [n6, n7]
+  - id: n6
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 0, d: 0}
+    loopback: [n1, n2, n3]
+  - id: n7
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 2, release: up}
+    loopback: [n4, n5]
+  - id: n8
+    tasks:
+      - {c: 0, d: 1, release: down}
+      - {c: 1, d: 1}
+    loopback: [n1, n2, n3]
