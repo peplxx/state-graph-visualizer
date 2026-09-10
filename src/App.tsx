@@ -1,567 +1,447 @@
-import React, { useCallback, useRef, useState } from 'react';
-import { Sparkles } from 'lucide-react';
-import type { SelectionState, GraphArea, LabelPosition } from './types/graph';
-import GraphViewer from './components/graphViewer';
-import type {
-	GraphViewerHandle,
-	NodeColorOverride,
-	AreaOverride
-} from './components/graphViewer';
-import { Toolbar } from './components/Toolbar';
-import { Sidebar } from './components/Sidebar';
-import { ResizableSidePanel } from './components/ResizableSidePanel';
-import { FileLoader } from './components/FileLoader';
-import { Legend } from './components/Legend';
-import { AreasList } from './components/AreasList';
-import { parseFile, serializeToYAML } from './core/parser';
-import type { GraphFile } from './types/graph';
-import type { LayoutName } from './core/layoutConfig';
-import { normalizeLayoutName } from './core/layoutConfig';
+import React from 'react';
+import { CheckCircle2, Info, X } from 'lucide-react';
+import {
+	DuplicateGraphError,
+	findIdenticalGraph
+} from './workspace/graphIdentity';
+import {
+	createExplorerState,
+	downloadExplorer
+} from './workspace/explorerState';
+import { House } from 'lucide-react';
+import {
+	GraphLibraryMenu,
+	WorkspaceHome,
+	ExplorerPicker
+} from './workspace/GraphLibrary';
+import { parseFile } from './core/parser';
+import { getWindowDefinition } from './workspace/registry';
+import {
+	importGraph,
+	unloadGraph,
+	openGraph,
+	closeWindow,
+	emptyWorkspace,
+	moveWindow,
+	restoreWorkspace
+} from './workspace/model';
+import type { Workspace, WindowTab } from './workspace/types';
+import {
+	backupWorkspace,
+	createWorkspaceWriter,
+	readWorkspace,
+	writeWorkspace
+} from './workspace/storage';
+import { WorkspaceTabs } from './workspace/WorkspaceTabs';
+import { UnsavedDialog } from './workspace/UnsavedDialog';
 
 export default function App() {
-	const viewerRef = useRef<GraphViewerHandle>(null);
-
-	const [graphData, setGraphData] = useState<GraphFile | null>(null);
-	const [filename, setFilename] = useState('');
-	const [layout, setLayout] = useState<LayoutName>('radial');
-	const [showLoopbacks, setShowLoopbacks] = useState(true);
-	const [showNormalEdges, setShowNormalEdges] = useState(true);
-	const [enableAnimation, setEnableAnimation] = useState(true);
-	const [stats, setStats] = useState<{ nodes: number; edges: number } | null>(
-		null
-	);
-	const [error, setError] = useState<string | null>(null);
-	const [showLegend, setShowLegend] = useState(false);
-	const [showAreas, setShowAreas] = useState(true);
-	const [hiddenAreaIds, setHiddenAreaIds] = useState<Set<string>>(new Set());
-
-	// Color overrides: user-applied node colors on top of YAML data
-	const [colorOverrides, setColorOverrides] = useState<
-		Map<string, NodeColorOverride>
-	>(new Map());
-
-	const handleColorChange = useCallback(
-		(
-			nodeIds: string[],
-			fill?: string | null,
-			border?: string | null,
-			hatch?: 'single' | 'cross' | 'none' | null
-		) => {
-			setColorOverrides((prev) => {
-				const next = new Map(prev);
-				for (const id of nodeIds) {
-					const existing = { ...next.get(id) };
-					if (fill !== undefined) {
-						if (fill === null) delete existing.fill;
-						else existing.fill = fill;
-					}
-					if (border !== undefined) {
-						if (border === null) delete existing.border;
-						else existing.border = border;
-					}
-					if (hatch !== undefined) {
-						if (hatch === null) delete existing.hatch;
-						else existing.hatch = hatch;
-					}
-					if (Object.keys(existing).length === 0) next.delete(id);
-					else next.set(id, existing);
-				}
-				return next;
-			});
-		},
+	const [workspace, setWorkspace] = React.useState<Workspace>(emptyWorkspace);
+	const current = React.useRef(workspace);
+	const uploadRef = React.useRef<HTMLInputElement>(null);
+	const pickerAnchor = React.useRef<HTMLElement | null>(null);
+	const showPicker = (anchor: HTMLButtonElement) => {
+		pickerAnchor.current = anchor;
+		setPickerOpen((open) => !open);
+	};
+	const [pickerOpen, setPickerOpen] = React.useState(false);
+	const [uploading, setUploading] = React.useState(false);
+	const [ready, setReady] = React.useState(false);
+	const [error, setError] = React.useState('');
+	const [notice, setNotice] = React.useState<{
+		text: string;
+		success: boolean;
+	} | null>(null);
+	const [pending, setPending] = React.useState<{
+		id: string;
+		action: () => void;
+	} | null>(null);
+	const persistenceEnabled = React.useRef(false);
+	const writer = React.useMemo(
+		() =>
+			createWorkspaceWriter(writeWorkspace, (cause) => {
+				setError(
+					`Could not save the workspace locally. Your open tabs are still available. ${cause instanceof Error ? cause.message : ''}`
+				);
+			}),
 		[]
 	);
 
-	// Area overrides and selection
-	const [areaOverrides, setAreaOverrides] = useState<
-		Map<string, AreaOverride>
-	>(new Map());
-	const [selectedArea, setSelectedArea] = useState<GraphArea | null>(null);
-
-	const handleAreaColorChange = useCallback(
-		(
-			fill?: string | null,
-			border?: string | null,
-			hatch?: 'single' | 'cross' | 'none' | null
-		) => {
-			if (!selectedArea) return;
-			const areaId = selectedArea.id;
-			setAreaOverrides((prev) => {
-				const next = new Map(prev);
-				const existing = { ...next.get(areaId) };
-				if (fill !== undefined) {
-					if (fill === null) delete existing.fill;
-					else existing.fill = fill;
-				}
-				if (border !== undefined) {
-					if (border === null) delete existing.border;
-					else existing.border = border;
-				}
-				if (hatch !== undefined) {
-					if (hatch === null) delete existing.hatch;
-					else existing.hatch = hatch;
-				}
-				if (Object.keys(existing).length === 0) next.delete(areaId);
-				else next.set(areaId, existing);
-				return next;
-			});
-		},
-		[selectedArea]
-	);
-
-	const handleAreaLabelPositionChange = useCallback(
-		(pos: LabelPosition) => {
-			if (!selectedArea) return;
-			const areaId = selectedArea.id;
-			setAreaOverrides((prev) => {
-				const next = new Map(prev);
-				const existing = { ...next.get(areaId) };
-				existing.labelPosition = pos;
-				next.set(areaId, existing);
-				return next;
-			});
-		},
-		[selectedArea]
-	);
-
-	const handleAssignNodeToArea = useCallback(
-		(nodeId: string, areaId: string | null) => {
-			if (!graphData) return;
-			setAreaOverrides((prev) => {
-				const next = new Map(prev);
-				for (const area of graphData.areas ?? []) {
-					const ov = next.get(area.id);
-					const currentNodes = ov?.nodes ?? area.nodeIds;
-					if (currentNodes.includes(nodeId)) {
-						const updated = currentNodes.filter(
-							(id) => id !== nodeId
+	React.useEffect(() => {
+		let disposed = false;
+		readWorkspace()
+			.then(async (raw) => {
+				const result = restoreWorkspace(raw);
+				if (disposed) return;
+				current.current = result.workspace;
+				setWorkspace(result.workspace);
+				setError(result.warnings.join(' '));
+				try {
+					if (result.warnings.length) await backupWorkspace(raw);
+					if (!disposed) persistenceEnabled.current = true;
+				} catch {
+					if (!disposed)
+						setError(
+							`${result.warnings.join(' ')} Could not back up the damaged session. Local saving is disabled; your recovered tabs remain available.`
 						);
-						if (updated.length > 0 || ov) {
-							next.set(area.id, { ...ov, nodes: updated });
-						}
-					}
 				}
-				if (areaId) {
-					const targetArea = graphData.areas?.find(
-						(a) => a.id === areaId
+			})
+			.catch((cause) => {
+				if (!disposed)
+					setError(
+						`Could not restore the workspace. You can keep working in this session. ${cause instanceof Error ? cause.message : ''}`
 					);
-					if (targetArea) {
-						const ov = next.get(areaId);
-						const currentNodes = ov?.nodes ?? targetArea.nodeIds;
-						if (!currentNodes.includes(nodeId)) {
-							next.set(areaId, {
-								...ov,
-								nodes: [...currentNodes, nodeId]
-							});
-						}
-					}
-				}
-				return next;
+			})
+			.finally(() => {
+				if (!disposed) setReady(true);
 			});
-		},
-		[graphData]
-	);
-
-	const handleAssignGroupToArea = useCallback(
-		(nodeIds: string[], areaId: string | null) => {
-			if (!graphData) return;
-			setAreaOverrides((prev) => {
-				const next = new Map(prev);
-				// Remove all selected nodes from every area
-				for (const area of graphData.areas ?? []) {
-					const ov = next.get(area.id);
-					const currentNodes = ov?.nodes ?? area.nodeIds;
-					const updated = currentNodes.filter(
-						(id) => !nodeIds.includes(id)
-					);
-					if (updated.length !== currentNodes.length || ov) {
-						next.set(area.id, { ...ov, nodes: updated });
-					}
-				}
-				// Add all to target area
-				if (areaId) {
-					const targetArea = graphData.areas?.find(
-						(a) => a.id === areaId
-					);
-					if (targetArea) {
-						const ov = next.get(areaId);
-						const currentNodes = ov?.nodes ?? targetArea.nodeIds;
-						const merged = [
-							...currentNodes.filter(
-								(id) => !nodeIds.includes(id)
-							),
-							...nodeIds
-						];
-						next.set(areaId, { ...ov, nodes: merged });
-					}
-				}
-				return next;
-			});
-		},
-		[graphData]
-	);
-
-	const handleAreaSelect = useCallback((area: GraphArea | null) => {
-		setSelectedArea(area);
-		if (area) {
-			setSidebarOpen(false);
-			viewerRef.current?.clearSelection();
-		}
-	}, []);
-
-	const handleAreaLabelChange = useCallback(
-		(label: string) => {
-			if (!selectedArea) return;
-			const id = selectedArea.id;
-			setGraphData((prev) =>
-				prev
-					? {
-							...prev,
-							areas: prev.areas?.map((a) =>
-								a.id === id
-									? { ...a, label: label || undefined }
-									: a
-							)
-						}
-					: prev
-			);
-			setSelectedArea((prev) =>
-				prev ? { ...prev, label: label || undefined } : null
-			);
-		},
-		[selectedArea]
-	);
-
-	const handleDeleteArea = useCallback(() => {
-		if (!selectedArea) return;
-		const id = selectedArea.id;
-		setGraphData((prev) =>
-			prev
-				? { ...prev, areas: prev.areas?.filter((a) => a.id !== id) }
-				: prev
-		);
-		setAreaOverrides((prev) => {
-			const next = new Map(prev);
-			next.delete(id);
-			return next;
-		});
-		setSelectedArea(null);
-	}, [selectedArea]);
-
-	const handleCreateArea = useCallback(
-		(nodeIds: string[]) => {
-			if (!graphData) return;
-			const existingIds = new Set(
-				graphData.areas?.map((a) => a.id) ?? []
-			);
-			let n = (graphData.areas?.length ?? 0) + 1;
-			let newId = `area-${n}`;
-			while (existingIds.has(newId)) {
-				n += 1;
-				newId = `area-${n}`;
-			}
-			const newArea = {
-				id: newId,
-				nodeIds,
-				labelPosition: 'top-left' as const
-			};
-			setGraphData((prev) =>
-				prev
-					? { ...prev, areas: [...(prev.areas ?? []), newArea] }
-					: prev
-			);
-			setSelectedArea(newArea);
-			setSidebarOpen(false);
-			viewerRef.current?.clearSelection();
-		},
-		[graphData]
-	);
-
-	const handleSelectAreaNodes = useCallback(() => {
-		if (!selectedArea) return;
-		const ov = areaOverrides.get(selectedArea.id);
-		const nodeIds = ov?.nodes ?? selectedArea.nodeIds;
-		viewerRef.current?.selectNodes(nodeIds);
-		setSelectedArea(null);
-	}, [selectedArea, areaOverrides]);
-
-	const handleToggleAreaVisibility = useCallback((areaId: string) => {
-		setHiddenAreaIds((prev) => {
-			const next = new Set(prev);
-			if (next.has(areaId)) next.delete(areaId);
-			else next.add(areaId);
-			return next;
-		});
-	}, []);
-
-	// Sidebar state
-	const [sidebarTick, setSidebarTick] = useState(0);
-	const [sidebarOpen, setSidebarOpen] = useState(false);
-	const [appearanceOpen, setAppearanceOpen] = useState(false);
-
-	const selectionRef = useRef<SelectionState | null>(null);
-
-	const onSelectionChangeRef = useRef((selection: SelectionState | null) => {
-		selectionRef.current = selection;
-		if (selection === null) {
-			setSidebarOpen(false);
-		} else {
-			setSidebarOpen(true);
-			setSidebarTick((t) => t + 1);
-			setSelectedArea(null); // clear area selection when node selected
-		}
-	});
-
-	const handleLoad = useRef((graph: GraphFile, name: string) => {
-		setGraphData(graph);
-		setFilename(name);
-		setColorOverrides(new Map()); // reset overrides on new file
-		setAreaOverrides(new Map());
-		setSelectedArea(null);
-		setHiddenAreaIds(new Set());
-		selectionRef.current = null;
-		setSidebarOpen(false);
-		setError(null);
-		if (graph.layout?.algorithm) {
-			setLayout(normalizeLayoutName(graph.layout.algorithm));
-		}
-	});
-
-	const handleFileInput = useRef((file: File) => {
-		const reader = new FileReader();
-		reader.onload = (ev) => {
-			try {
-				const graph = parseFile(ev.target!.result as string);
-				handleLoad.current(graph, file.name);
-			} catch (err) {
-				setError((err as Error).message);
-			}
+		const flush = () => void writer.flush();
+		const visibility = () => {
+			if (document.visibilityState === 'hidden') flush();
 		};
-		reader.readAsText(file);
-	});
+		window.addEventListener('pagehide', flush);
+		document.addEventListener('visibilitychange', visibility);
+		return () => {
+			disposed = true;
+			writer.dispose();
+			window.removeEventListener('pagehide', flush);
+			document.removeEventListener('visibilitychange', visibility);
+		};
+	}, [writer]);
 
+	const commit = (next: Workspace, immediate = true) => {
+		current.current = next;
+		setWorkspace(next);
+		if (persistenceEnabled.current) writer.push(next, immediate);
+	};
+	const updateWindow = (id: string, state: WindowTab['state']) => {
+		const old = current.current.tabs.find((tab) => tab.id === id);
+		if (!old || old.state === state) return;
+		const definition = getWindowDefinition(old.kind);
+		const changedDocument = definition.documentChanged(old.state, state);
+		let graphs = current.current.graphs;
+		let graphId = old.graphId;
+		if (
+			state.graphData &&
+			(!graphId || old.state.documentId !== state.documentId)
+		) {
+			const existing = findIdenticalGraph(graphs, state.graphData);
+			if (existing) {
+				graphId = existing.id;
+				setNotice({
+					text: `This graph is already in your library as “${existing.filename}”.`,
+					success: false
+				});
+			} else {
+				graphId = crypto.randomUUID();
+				graphs = [
+					...graphs,
+					{
+						id: graphId,
+						filename: state.filename,
+						graph: state.graphData
+					}
+				];
+				setNotice({
+					text: `“${state.filename}” is ready to explore.`,
+					success: true
+				});
+			}
+		} else if (
+			graphId &&
+			state.baselineYaml &&
+			old.state.baselineYaml !== state.baselineYaml
+		) {
+			const graph = parseFile(state.baselineYaml);
+			graphs = graphs.map((item) =>
+				item.id === graphId
+					? { ...item, graph, filename: state.filename }
+					: item
+			);
+		}
+		const title = old.customTitle
+			? old.title
+			: (definition.fileTitle(state) ?? old.title);
+		commit(
+			{
+				...current.current,
+				graphs,
+				tabs: current.current.tabs.map((tab) =>
+					tab.id === id
+						? ({ ...tab, state, title, graphId } as WindowTab)
+						: tab
+				)
+			},
+			changedDocument
+		);
+	};
+	const guard = (id: string, action: () => void) => {
+		const tab = current.current.tabs.find((item) => item.id === id);
+		if (tab && getWindowDefinition(tab.kind).dirty(tab.state))
+			setPending({ id, action });
+		else action();
+	};
+	const download = (graphId: string) => {
+		const graph = current.current.graphs.find(
+			(item) => item.id === graphId
+		);
+		if (!graph) return;
+		const tab = current.current.tabs.find(
+			(item) => item.graphId === graphId
+		);
+		downloadExplorer(
+			tab?.state ?? {
+				...createExplorerState(),
+				graphData: graph.graph,
+				filename: graph.filename
+			}
+		);
+	};
+	const unload = (graphId: string) => {
+		// Close the picker before showing the unsaved-changes dialog.
+		setPickerOpen(false);
+		const tab = current.current.tabs.find(
+			(item) => item.graphId === graphId
+		);
+		const action = () => commit(unloadGraph(current.current, graphId));
+		if (tab) guard(tab.id, action);
+		else action();
+	};
+	const open = (id: string) => {
+		commit(openGraph(current.current, id));
+		setPickerOpen(false);
+	};
+	const upload = () => uploadRef.current?.click();
+	const loadFiles = async (files: File[]) => {
+		setUploading(true);
+		const failures: string[] = [];
+		const duplicates: string[] = [];
+		const added: string[] = [];
+		setNotice(null);
+		setError('');
+		for (const file of files) {
+			try {
+				const graph = parseFile(await file.text());
+				commit(importGraph(current.current, graph, file.name));
+				added.push(file.name);
+			} catch (cause) {
+				if (cause instanceof DuplicateGraphError) {
+					duplicates.push(
+						`“${file.name}” is already in your library as “${cause.existing.filename}”.`
+					);
+					continue;
+				}
+				failures.push(
+					`${file.name}: ${cause instanceof Error ? cause.message : 'Could not load graph.'}`
+				);
+			}
+		}
+		if (failures.length) setError(failures.join(' '));
+		const summary =
+			added.length === 1
+				? `“${added[0]}” is ready to explore.`
+				: added.length > 1
+					? `${added.length} graphs loaded and ready to explore.`
+					: '';
+		if (summary || duplicates.length)
+			setNotice({
+				text: [summary, ...duplicates].filter(Boolean).join(' '),
+				success: added.length > 0
+			});
+		setUploading(false);
+	};
+	const active = workspace.tabs.find((tab) => tab.id === workspace.activeId);
+	const Component = active
+		? getWindowDefinition(active.kind).Component
+		: null;
 	return (
 		<div className="app-root">
-			{/* ── Header ── */}
 			<header className="app-header">
-				<div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-					<span className="app-title">
-						State Transition Graph Visualizer
-					</span>
-					{filename && (
-						<span className="filename-badge">{filename}</span>
-					)}
-				</div>
-				<div className="header-actions">
-					<button
-						className={`header-toggle${enableAnimation ? ' is-active' : ''}`}
-						type="button"
-						aria-pressed={enableAnimation}
-						onClick={() => setEnableAnimation((v) => !v)}
-						title="Enable or disable entrance animation"
-					>
-						<Sparkles
-							size={14}
-							strokeWidth={2}
-							aria-hidden="true"
-						/>
-						Animation
-					</button>
-					<button
-						className="header-toggle"
-						type="button"
-						onClick={() => setShowLegend((v) => !v)}
-					>
-						{showLegend ? 'Hide' : 'Show'} Legend
-					</button>
-				</div>
+				<span className="app-title">
+					State Transition Graph Visualizer
+				</span>
+				{ready && (
+					<GraphLibraryMenu
+						onUnload={unload}
+						onDownload={download}
+						graphs={workspace.graphs}
+						onOpen={open}
+						onUpload={upload}
+						onFiles={(files) => void loadFiles(files)}
+					/>
+				)}
+				<button
+					type="button"
+					className="workspace-home-button"
+					aria-label="Workspace home"
+					onClick={() =>
+						commit({ ...current.current, activeId: null })
+					}
+				>
+					<House size={17} />
+				</button>
 			</header>
-
-			{/* ── Error banner ── */}
-			{error && (
-				<div className="error-banner" onClick={() => setError(null)}>
-					⚠ {error} &nbsp;<strong>×</strong>
+			<input
+				ref={uploadRef}
+				type="file"
+				multiple
+				accept=".yaml,.yml,.json,.toml"
+				hidden
+				onChange={(event) => {
+					const files = Array.from(event.target.files ?? []);
+					event.target.value = '';
+					void loadFiles(files);
+				}}
+			/>
+			{uploading && (
+				<div className="workspace-upload-status" role="status">
+					Loading graphs…
 				</div>
 			)}
-
-			{/* ── Body ── */}
-			<div className="app-body">
-				{/* ── Canvas ── */}
-				<main className="canvas-area">
-					{!graphData ? (
-						<div className="empty-state">
-							<FileLoader
-								onLoad={handleLoad.current}
-								onError={setError}
-							/>
+			{notice && (
+				<div
+					className={`workspace-notice${notice.success ? ' is-success' : ''}`}
+					role="status"
+				>
+					{notice.success ? (
+						<CheckCircle2 size={16} />
+					) : (
+						<Info size={16} />
+					)}
+					<span>{notice.text}</span>
+					<button
+						type="button"
+						aria-label="Dismiss notification"
+						onClick={() => setNotice(null)}
+					>
+						<X size={15} />
+					</button>
+				</div>
+			)}
+			{error && (
+				<div className="workspace-error" role="alert">
+					<span>{error}</span>
+					<button
+						type="button"
+						onClick={() => setError('')}
+						aria-label="Dismiss storage message"
+					>
+						×
+					</button>
+				</div>
+			)}
+			{!ready ? (
+				<main className="workspace-welcome">Restoring workspace…</main>
+			) : (
+				<>
+					<WorkspaceTabs
+						workspace={workspace}
+						onActivate={(id) =>
+							commit({ ...current.current, activeId: id })
+						}
+						onAdd={showPicker}
+						onClose={(id) =>
+							guard(id, () =>
+								commit(closeWindow(current.current, id))
+							)
+						}
+						onRename={(id, title) =>
+							commit({
+								...current.current,
+								tabs: current.current.tabs.map((tab) =>
+									tab.id === id
+										? { ...tab, title, customTitle: true }
+										: tab
+								)
+							})
+						}
+						onMove={(from, to) =>
+							commit(moveWindow(current.current, from, to))
+						}
+					/>
+					{active && Component ? (
+						<div
+							className="workspace-panel"
+							role="tabpanel"
+							id={`panel-${active.id}`}
+							aria-labelledby={`tab-${active.id}`}
+						>
+							<React.Suspense
+								fallback={
+									<div className="workspace-welcome">
+										Opening window…
+									</div>
+								}
+							>
+								<Component
+									key={active.id}
+									initialState={active.state}
+									onChange={(state) =>
+										updateWindow(active.id, state)
+									}
+									confirmDiscard={(action) =>
+										guard(active.id, action)
+									}
+								/>
+							</React.Suspense>
 						</div>
 					) : (
-						<>
-							<Toolbar
-								layout={layout}
-								onLayoutChange={setLayout}
-								showLoopbacks={showLoopbacks}
-								onShowLoopbacksChange={setShowLoopbacks}
-								showNormalEdges={showNormalEdges}
-								onShowNormalEdgesChange={setShowNormalEdges}
-								showAreas={showAreas}
-								onShowAreasChange={setShowAreas}
-								onFit={() => viewerRef.current?.fit()}
-								onZoomIn={() => viewerRef.current?.zoomIn()}
-								onZoomOut={() => viewerRef.current?.zoomOut()}
-								onExport={() => {
-									const url = viewerRef.current?.exportPNG();
-									if (!url) return;
-									const a = document.createElement('a');
-									a.href = url;
-									a.download =
-										(filename.replace(/\.\w+$/, '') ||
-											'graph') + '.svg';
-									a.click();
-								}}
-								onSave={
-									graphData
-										? () => {
-												const yaml = serializeToYAML(
-													graphData,
-													colorOverrides,
-													areaOverrides
-												);
-												const blob = new Blob([yaml], {
-													type: 'text/yaml'
-												});
-												const url =
-													URL.createObjectURL(blob);
-												const a =
-													document.createElement('a');
-												a.href = url;
-												a.download =
-													(filename.replace(
-														/\.\w+$/,
-														''
-													) || 'graph') + '.yaml';
-												a.click();
-												URL.revokeObjectURL(url);
-											}
-										: undefined
-								}
-								onSearch={(q) => {
-									if (q.trim())
-										viewerRef.current?.focusNode(q.trim());
-								}}
-								stats={stats}
-							/>
-
-							<GraphViewer
-								ref={viewerRef}
-								graphData={graphData}
-								layout={layout}
-								showLoopbacks={showLoopbacks}
-								showNormalEdges={showNormalEdges}
-								enableAnimation={enableAnimation}
-								onSelectionChange={onSelectionChangeRef.current}
-								onStatsChange={setStats}
-								colorOverrides={colorOverrides}
-								areaOverrides={areaOverrides}
-								onAreaSelect={handleAreaSelect}
-								showAreas={showAreas}
-								hiddenAreaIds={hiddenAreaIds}
-							/>
-
-							<label className="reload-btn">
-								<input
-									type="file"
-									accept=".yaml,.yml,.json"
-									style={{ display: 'none' }}
-									onChange={(e) => {
-										const f = e.target.files?.[0];
-										if (f) handleFileInput.current(f);
-									}}
-								/>
-								↺ Load new file
-							</label>
-						</>
-					)}
-				</main>
-
-				{/* ── Side panels ── */}
-				<ResizableSidePanel
-					visible={Boolean(
-						showLegend ||
-						sidebarOpen ||
-						selectedArea ||
-						graphData?.areas?.length
-					)}
-				>
-					{showLegend && <Legend />}
-					{graphData?.areas && graphData.areas.length > 0 && (
-						<AreasList
-							areas={graphData.areas}
-							areaOverrides={areaOverrides}
-							selectedAreaId={selectedArea?.id}
-							hiddenAreaIds={hiddenAreaIds}
-							onAreaSelect={handleAreaSelect}
-							onToggleAreaVisibility={handleToggleAreaVisibility}
+						<WorkspaceHome
+							graphs={workspace.graphs}
+							onUpload={upload}
+							onFiles={(files) => void loadFiles(files)}
+							onExplorer={showPicker}
 						/>
 					)}
-					{(sidebarOpen && selectionRef.current) || selectedArea ? (
-						<Sidebar
-							appearanceOpen={appearanceOpen}
-							onAppearanceOpenChange={setAppearanceOpen}
-							key={
-								selectedArea
-									? `area-${selectedArea.id}`
-									: `node-${sidebarTick}`
-							}
-							selection={selectionRef.current ?? undefined}
-							systemConfig={graphData?.system}
-							graphData={graphData ?? undefined}
-							onClose={() => {
-								setSidebarOpen(false);
-								setSelectedArea(null);
-								viewerRef.current?.clearSelection();
-							}}
-							colorOverrides={colorOverrides}
-							onColorChange={handleColorChange}
-							selectedArea={selectedArea ?? undefined}
-							areaOverride={
-								selectedArea
-									? areaOverrides.get(selectedArea.id)
-									: undefined
-							}
-							allAreas={graphData?.areas}
-							onAreaColorChange={handleAreaColorChange}
-							onAreaLabelPositionChange={
-								handleAreaLabelPositionChange
-							}
-							onSelectAreaNodes={
-								selectedArea ? handleSelectAreaNodes : undefined
-							}
-							onAssignNodeToArea={
-								selectionRef.current?.nodes.length === 1
-									? (areaId) =>
-											handleAssignNodeToArea(
-												selectionRef.current!.nodes[0]
-													.id,
-												areaId
-											)
-									: undefined
-							}
-							onCreateArea={handleCreateArea}
-							onAssignGroupToArea={
-								selectionRef.current &&
-								selectionRef.current.nodes.length > 1
-									? handleAssignGroupToArea
-									: undefined
-							}
-							onAreaLabelChange={handleAreaLabelChange}
-							onDeleteArea={
-								selectedArea ? handleDeleteArea : undefined
-							}
-						/>
-					) : null}
-				</ResizableSidePanel>
-			</div>
+				</>
+			)}
+			{pickerOpen && (
+				<ExplorerPicker
+					anchor={pickerAnchor.current}
+					onUnload={unload}
+					onDownload={download}
+					graphs={workspace.graphs}
+					onUpload={upload}
+					onFiles={(files) => void loadFiles(files)}
+					onOpen={open}
+					onClose={() => setPickerOpen(false)}
+				/>
+			)}
+			{pending && (
+				<UnsavedDialog
+					title={
+						workspace.tabs.find((tab) => tab.id === pending.id)
+							?.title ?? 'Explorer'
+					}
+					onCancel={() => setPending(null)}
+					onDiscard={() => {
+						const action = pending.action;
+						setPending(null);
+						action();
+					}}
+					onSave={() => {
+						try {
+							const tab = current.current.tabs.find(
+								(item) => item.id === pending.id
+							);
+							if (tab)
+								updateWindow(
+									tab.id,
+									getWindowDefinition(tab.kind).save(
+										tab.state
+									)
+								);
+							const action = pending.action;
+							setPending(null);
+							action();
+						} catch (cause) {
+							setError(
+								`Could not save the graph. ${cause instanceof Error ? cause.message : ''}`
+							);
+						}
+					}}
+				/>
+			)}
 		</div>
 	);
 }

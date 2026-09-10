@@ -7,6 +7,8 @@ An interactive viewer for exploring state-transition graphs and schedules in rea
 
 ![Radial graph with a branch highlighted in burgundy](docs/screenshots/radial-overview.png)
 
+Use **Upload graph** to add files to your workspace, then **Open Explorer** to inspect one. The **Graphs** menu opens loaded graphs; **New window** opens the Explorer picker. Closing an Explorer keeps its graph in the library. Drag tabs to reorder or double-click to rename. Graphs and tabs restore locally in the same browser; a dot marks changes that still need **Save**.
+
 ## Explore states and schedules
 
 Switch between radial and tree layouts, zoom into a branch, or find a node by ID. Select a state to inspect its tasks, connections, and schedule along a path from the initial state. Toggle deadline markers and export the schedule as SVG.
@@ -23,7 +25,7 @@ Click **Create area from selection** to turn the group into a named visual regio
 
 ## Import and export
 
-Load YAML or JSON graphs. **Save YAML** preserves styling and areas for the next session; **Export** saves the graph as SVG. Browse the [examples](examples) or read the [YAML format documentation](docs/graph-format.md). The examples were generated with the [GFP tool in libstgx](https://github.com/peplxx/libstgx/tree/main/examples/gfp), using the parameters in each file with state pruning disabled.
+Load YAML or JSON graphs. **Save** stores graph changes in the workspace; **Download YAML** downloads a file without changing its saved status; **Export** saves the graph as SVG. Browse the [examples](examples) or read the [YAML format documentation](docs/graph-format.md). The examples were generated with the [GFP tool in libstgx](https://github.com/peplxx/libstgx/tree/main/examples/gfp), using the parameters in each file with state pruning disabled.
 
 ## Run locally
 
@@ -34,12 +36,13 @@ bun install --frozen-lockfile
 bun run dev
 ```
 
-Open the URL printed in the terminal and drop a graph file into the window.
+Open the URL printed in the terminal, upload a graph, then open it in an Explorer.
 
 ## Checks
 
 ```sh
 bun run build      # TypeScript checks and production build
+bun run test       # Workspace state and persistence tests
 bun run lint       # Oxlint errors and warnings
 bun run fmt:check  # Formatting check
 ```

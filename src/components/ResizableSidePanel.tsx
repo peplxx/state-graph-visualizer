@@ -4,14 +4,28 @@ const DEFAULT_WIDTH = 320;
 
 export function ResizableSidePanel({
 	visible,
-	children
+	children,
+	preferredWidth,
+	onWidthChange,
+	initialScrollTop = 0,
+	onScrollChange
 }: {
 	visible: boolean;
+	preferredWidth: number;
+	onWidthChange: (width: number) => void;
+	initialScrollTop?: number;
+	onScrollChange?: (scroll: number) => void;
 	children: React.ReactNode;
 }) {
 	const panelRef = useRef<HTMLElement>(null);
 	const dragRef = useRef<{ x: number; width: number } | null>(null);
-	const [preferredWidth, setPreferredWidth] = useState(DEFAULT_WIDTH);
+	const setPreferredWidth = onWidthChange;
+	const contentRef = useRef<HTMLDivElement>(null);
+	const initialScrollRef = useRef(initialScrollTop);
+	React.useLayoutEffect(() => {
+		if (contentRef.current)
+			contentRef.current.scrollTop = initialScrollRef.current;
+	}, []);
 	const [containerWidth, setContainerWidth] = useState(window.innerWidth);
 	const [dragging, setDragging] = useState(false);
 	const maxWidth = Math.min(
@@ -91,7 +105,15 @@ export function ResizableSidePanel({
 					setPreferredWidth(clamp(next));
 				}}
 			/>
-			<div className="side-panels">{children}</div>
+			<div
+				ref={contentRef}
+				className="side-panels"
+				onScroll={(event) =>
+					onScrollChange?.(event.currentTarget.scrollTop)
+				}
+			>
+				{children}
+			</div>
 		</aside>
 	);
 }

@@ -64,12 +64,23 @@ export interface AreaOverride {
 	nodes?: string[];
 }
 
+export interface GraphViewState {
+	x: number;
+	y: number;
+	k: number;
+}
+
 export interface GraphViewerProps {
+	initialView?: GraphViewState | null;
+	initialSelectedIds?: string[];
+	initialSelectedAreaId?: string;
+	onViewChange?: (view: GraphViewState) => void;
 	graphData: GraphFile | null;
 	layout: LayoutName;
 	showLoopbacks: boolean;
 	showNormalEdges: boolean;
 	enableAnimation: boolean;
+	showDeadlineBadges?: boolean;
 	onSelectionChange?: (selection: SelectionState | null) => void;
 	onStatsChange?: (stats: { nodes: number; edges: number }) => void;
 	colorOverrides?: Map<string, NodeColorOverride>;
@@ -80,6 +91,7 @@ export interface GraphViewerProps {
 }
 
 export interface GraphViewerHandle {
+	getViewState(): GraphViewState | null;
 	fit(): void;
 	zoomIn(): void;
 	zoomOut(): void;

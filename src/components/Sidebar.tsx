@@ -74,6 +74,10 @@ interface AreaOverride {
 }
 
 interface Props {
+	showDeadlines: boolean;
+	setShowDeadlines: React.Dispatch<React.SetStateAction<boolean>>;
+	showRemainingWork: boolean;
+	setShowRemainingWork: React.Dispatch<React.SetStateAction<boolean>>;
 	appearanceOpen: boolean;
 	onAppearanceOpenChange: (open: boolean) => void;
 	// Node selection mode
@@ -391,6 +395,10 @@ function AppearanceSection({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export const Sidebar: React.FC<Props> = ({
+	showDeadlines,
+	setShowDeadlines,
+	showRemainingWork,
+	setShowRemainingWork,
 	appearanceOpen,
 	onAppearanceOpenChange,
 	selection,
@@ -416,8 +424,6 @@ export const Sidebar: React.FC<Props> = ({
 	const [labelDraft, setLabelDraft] = React.useState(
 		selectedArea?.label ?? ''
 	);
-	const [showDeadlines, setShowDeadlines] = React.useState(true);
-	const [showRemainingWork, setShowRemainingWork] = React.useState(true);
 
 	// Derive node/group before early returns so hooks below are unconditional.
 	const _selNodes = selection?.nodes ?? [];

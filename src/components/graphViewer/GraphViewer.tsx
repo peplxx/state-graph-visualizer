@@ -70,11 +70,16 @@ export type {
 const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 	(
 		{
+			initialView,
+			initialSelectedIds = [],
+			initialSelectedAreaId,
+			onViewChange,
 			graphData,
 			layout,
 			showLoopbacks,
 			showNormalEdges,
 			enableAnimation,
+			showDeadlineBadges = true,
 			onSelectionChange,
 			onStatsChange,
 			colorOverrides,
@@ -85,6 +90,10 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 		},
 		ref
 	) => {
+		const initialMountViewRef = useRef(initialView);
+		const restoreViewRef = useRef(initialView);
+		const onViewChangeRef = useRef(onViewChange);
+		onViewChangeRef.current = onViewChange;
 		const svgRef = useRef<SVGSVGElement>(null);
 		const wrapperRef = useRef<HTMLDivElement>(null);
 		const gRef = useRef<SVGGElement | null>(null);
@@ -92,7 +101,15 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 		const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(
 			null
 		);
-		const selectedIdsRef = useRef<Set<string>>(new Set());
+		const deadlineBadgesVisibleRef = useRef(showDeadlineBadges);
+		deadlineBadgesVisibleRef.current = showDeadlineBadges;
+		useEffect(() => {
+			if (gRef.current)
+				d3.select(gRef.current)
+					.selectAll('.deadline-badge')
+					.style('display', showDeadlineBadges ? null : 'none');
+		}, [showDeadlineBadges]);
+		const selectedIdsRef = useRef<Set<string>>(new Set(initialSelectedIds));
 		const nodePosRef = useRef<Map<string, NodePos>>(new Map());
 		const indegreeMapRef = useRef<Map<string, number>>(new Map());
 		const outdegreeMapRef = useRef<Map<string, number>>(new Map());
@@ -125,7 +142,9 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 		const onAreaSelectRef = useRef(onAreaSelect);
 		onAreaSelectRef.current = onAreaSelect;
 		// Track which area is currently highlighted as selected
-		const selectedAreaIdRef = useRef<string | null>(null);
+		const selectedAreaIdRef = useRef<string | null>(
+			initialSelectedAreaId ?? null
+		);
 
 		const [activeLayout, setActiveLayout] = useState<LayoutName>(layout);
 		useEffect(() => {
@@ -459,6 +478,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 
 		// ── Init SVG + zoom (once) ────────────────────────────────────────
 		useEffect(() => {
+			restoreViewRef.current = initialMountViewRef.current;
 			if (!svgRef.current) return;
 			const svg = d3.select(svgRef.current);
 			svg.selectAll('*').remove();
@@ -511,13 +531,23 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 					if (spaceKeyRef.current) setPanDragging(true);
 				})
 				.on('end', () => setPanDragging(false))
-				.on('zoom', (event) => g.attr('transform', event.transform));
+				.on('zoom', (event) => {
+					g.attr('transform', event.transform);
+					const { x, y, k } = event.transform;
+					onViewChangeRef.current?.({ x, y, k });
+				});
 
 			svg.call(zoom);
 			zoomRef.current = zoom;
 
 			return () => {
-				svg.selectAll('*').remove();
+				svg.interrupt().on('.zoom', null);
+				svg.selectAll('*')
+					.interrupt()
+					.interrupt('node-entrance')
+					.interrupt('edge-entrance')
+					.interrupt('area-entrance')
+					.remove();
 				gRef.current = null;
 				defsRef.current = null;
 				zoomRef.current = null;
@@ -814,6 +844,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 			const isRadial = activeLayout === 'radial';
 
 			const shouldAnimateEntrance =
+				!restoreViewRef.current &&
 				enableAnimation &&
 				(entranceGraphRef.current !== graphData ||
 					entranceLayoutRef.current !== activeLayout);
@@ -1339,6 +1370,10 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				.filter((d) => d.tasks.some(({ task }) => task.c > task.d))
 				.append('g')
 				.attr('class', 'deadline-badge')
+				.style(
+					'display',
+					deadlineBadgesVisibleRef.current ? null : 'none'
+				)
 				.attr('role', 'img')
 				.attr('aria-label', 'Deadline cannot be met')
 				.attr('transform', (d) => {
@@ -1529,7 +1564,14 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				nodes: graphData.nodes.length,
 				edges: graphData.edges.length
 			});
-			if (!shouldAnimateEntrance) {
+			if (restoreViewRef.current && svgRef.current && zoomRef.current) {
+				const { x, y, k } = restoreViewRef.current;
+				restoreViewRef.current = null;
+				d3.select(svgRef.current).call(
+					zoomRef.current.transform,
+					d3.zoomIdentity.translate(x, y).scale(k)
+				);
+			} else if (!shouldAnimateEntrance) {
 				fitView(false);
 			}
 		}, [
@@ -1717,6 +1759,12 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 					.transition()
 					.duration(200)
 					.call(zoom.scaleBy, 1.3);
+			},
+
+			getViewState() {
+				if (!svgRef.current) return null;
+				const { x, y, k } = d3.zoomTransform(svgRef.current);
+				return { x, y, k };
 			},
 
 			zoomOut() {

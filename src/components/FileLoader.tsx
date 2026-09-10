@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Upload, FileText } from 'lucide-react';
 import { parseFile } from '../core/parser';
 import type { GraphFile } from '../types/graph';
@@ -10,10 +10,15 @@ interface Props {
 
 export const FileLoader: React.FC<Props> = ({ onLoad, onError }) => {
 	const inputRef = useRef<HTMLInputElement>(null);
+	const readerRef = useRef<FileReader | null>(null);
+	useEffect(() => () => readerRef.current?.abort(), []);
 	const [dragging, setDragging] = useState(false);
 
 	const processFile = (file: File) => {
+		readerRef.current?.abort();
 		const reader = new FileReader();
+		readerRef.current = reader;
+		reader.onerror = () => onError('Could not read the selected file.');
 		reader.onload = (e) => {
 			try {
 				const content = e.target?.result as string;
@@ -35,6 +40,14 @@ export const FileLoader: React.FC<Props> = ({ onLoad, onError }) => {
 
 	return (
 		<div
+			role="button"
+			tabIndex={0}
+			onKeyDown={(event) => {
+				if (event.key === 'Enter' || event.key === ' ') {
+					event.preventDefault();
+					inputRef.current?.click();
+				}
+			}}
 			className={`file-loader ${dragging ? 'dragging' : ''}`}
 			onDragOver={(e) => {
 				e.preventDefault();
@@ -51,6 +64,7 @@ export const FileLoader: React.FC<Props> = ({ onLoad, onError }) => {
 				style={{ display: 'none' }}
 				onChange={(e) => {
 					const file = e.target.files?.[0];
+					e.target.value = '';
 					if (file) processFile(file);
 				}}
 			/>

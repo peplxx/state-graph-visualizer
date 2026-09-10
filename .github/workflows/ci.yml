@@ -23,6 +23,8 @@ jobs:
                 include:
                     - name: Build
                       script: build
+                    - name: Workspace tests
+                      script: test
                     - name: Lint
                       script: lint
                     - name: Formatting
