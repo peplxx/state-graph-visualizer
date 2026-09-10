@@ -21,6 +21,7 @@ import {
 	Download
 } from 'lucide-react';
 import { SchedulingDiagram } from './SchedulingDiagram';
+import { ScheduleComparison } from './ScheduleComparison';
 import { findPathToNode } from '../utils/pathFinder';
 
 // ── Color palettes ────────────────────────────────────────────────────────────
@@ -416,7 +417,7 @@ export const Sidebar: React.FC<Props> = ({
 		selectedArea?.label ?? ''
 	);
 	const [showDeadlines, setShowDeadlines] = React.useState(true);
-	const [showRemainingWork, setShowRemainingWork] = React.useState(false);
+	const [showRemainingWork, setShowRemainingWork] = React.useState(true);
 
 	// Derive node/group before early returns so hooks below are unconditional.
 	const _selNodes = selection?.nodes ?? [];
@@ -887,6 +888,7 @@ export const Sidebar: React.FC<Props> = ({
 								) : (
 									<SchedulingDiagram
 										ref={svgRef}
+										stateFillColor={displayFill}
 										path={nodePath}
 										systemConfig={systemConfig}
 										showDeadlines={showDeadlines}
@@ -1114,6 +1116,25 @@ export const Sidebar: React.FC<Props> = ({
 									</>
 								);
 							})()}
+
+						{graphData &&
+							systemConfig &&
+							systemConfig.tasks.length > 0 && (
+								<ScheduleComparison
+									nodeIds={nodeIds}
+									graph={graphData}
+									colorOverrides={colorOverrides}
+									system={systemConfig}
+									showDeadlines={showDeadlines}
+									showRemainingWork={showRemainingWork}
+									onDeadlinesChange={() =>
+										setShowDeadlines((v) => !v)
+									}
+									onRemainingWorkChange={() =>
+										setShowRemainingWork((v) => !v)
+									}
+								/>
+							)}
 
 						<h4 className="section-title">Selected IDs</h4>
 						<div className="selection-id-list">

@@ -1443,3 +1443,30 @@ button:focus-visible,
 .appearance-toggle svg.is-open {
 	transform: rotate(90deg);
 }
+
+.schedule-comparison,
+.schedule-comparison-item {
+	min-width: 0;
+}
+.schedule-comparison-list {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+.schedule-comparison-label {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin: 0 0 6px;
+	font-size: 11px;
+	font-weight: 500;
+}
+.schedule-comparison-label code {
+	font-family: var(--font-mono);
+	overflow-wrap: anywhere;
+}
+.schedule-comparison-label span {
+	color: var(--text-muted);
+	white-space: nowrap;
+}

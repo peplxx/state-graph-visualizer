@@ -1,4 +1,5 @@
 import React from 'react';
+import { color, interpolateRgb } from 'd3';
 import type { GraphNode, SystemConfig } from '../types/graph';
 
 // ── Layout constants ──────────────────────────────────────────────────────────
@@ -67,10 +68,22 @@ interface Props {
 	systemConfig: SystemConfig;
 	showDeadlines: boolean;
 	showRemainingWork?: boolean;
+	minimumTimelineEnd?: number;
+	stateFillColor?: string;
 }
 
 export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
-	({ path, systemConfig, showDeadlines, showRemainingWork = false }, ref) => {
+	(
+		{
+			path,
+			systemConfig,
+			showDeadlines,
+			showRemainingWork = false,
+			minimumTimelineEnd = 0,
+			stateFillColor
+		},
+		ref
+	) => {
 		const estimatePatternId = `deadline-miss-${React.useId().replace(/:/g, '')}`;
 		const nT = systemConfig.tasks.length;
 		const nInt = path.length - 1; // actual execution intervals
@@ -110,6 +123,33 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 			return prevC > nextC;
 		};
 
+		const stateColor = color(
+			stateFillColor ?? path[nInt].fillColor ?? '#ffffff'
+		)?.rgb();
+		const palette =
+			stateColor &&
+			!(
+				stateColor.r === 255 &&
+				stateColor.g === 255 &&
+				stateColor.b === 255
+			)
+				? [0, 0.12, 0.24].map((amount) => {
+						const brightness =
+							(stateColor.r * 0.299 +
+								stateColor.g * 0.587 +
+								stateColor.b * 0.114) /
+							255;
+						const fill = interpolateRgb(
+							stateColor,
+							brightness > 0.5 ? '#000000' : '#ffffff'
+						)(amount);
+						return {
+							fill,
+							stroke: interpolateRgb(fill, '#1a1a1a')(0.45)
+						};
+					})
+				: JOB_COLORS;
+
 		// Track arrivals along this path: node release flags may describe another
 		// incoming edge. A reset of remaining work/deadline starts a new job.
 		const jobColors = Array.from({ length: nT }, (_, i) => {
@@ -126,7 +166,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 						current.d > Math.max(0, previous.d - 1))
 				)
 					job++;
-				return JOB_COLORS[Math.max(0, job) % JOB_COLORS.length];
+				return palette[Math.max(0, job) % palette.length];
 			});
 		});
 
@@ -150,6 +190,7 @@ export const SchedulingDiagram = React.forwardRef<SVGSVGElement, Props>(
 
 		// SVG must be wide enough to show deadlines that fall beyond displayCols
 		let maxT = Math.max(
+			minimumTimelineEnd,
 			displayCols,
 			Math.floor((viewportWidth - LW - RPAD - 14) / CW)
 		);
