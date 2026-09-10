@@ -35,6 +35,9 @@ export interface Point {
 }
 
 export interface LoopBundle {
+	/** Obstacle-checked radial trunk; tree rendering computes its own curve. */
+	path?: string;
+	hasArrow?: boolean;
 	id: string;
 	target: string;
 	edges: GraphEdge[];

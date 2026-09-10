@@ -1,3 +1,4 @@
+import { routeRadialGraph } from './geometry/radialRoutes';
 import {
 	useEffect,
 	useRef,
@@ -112,6 +113,9 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 		const nodePosRef = useRef<Map<string, NodePos>>(new Map());
 		const indegreeMapRef = useRef<Map<string, number>>(new Map());
 		const outdegreeMapRef = useRef<Map<string, number>>(new Map());
+		const radialLayoutCacheRef = useRef(
+			new WeakMap<GraphFile, ReturnType<typeof computeRadialPositions>>()
+		);
 		const routeCacheRef = useRef<{
 			graph: GraphFile;
 			layout: LayoutName;
@@ -984,10 +988,14 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 			let treeLevelYs: number[] = [];
 
 			if (isRadial) {
-				const result = computeRadialPositions(
-					graphData.nodes,
-					graphData.edges
-				);
+				let result = radialLayoutCacheRef.current.get(graphData);
+				if (!result) {
+					result = computeRadialPositions(
+						graphData.nodes,
+						graphData.edges
+					);
+					radialLayoutCacheRef.current.set(graphData, result);
+				}
 				positions = result.positions;
 				ringRadii = result.ringRadii;
 			} else {
@@ -1147,7 +1155,12 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				routeCache.graph !== graphData ||
 				routeCache.layout !== activeLayout
 			) {
-				const bundles = buildLoopBundles(loopEdges, nodeMap, isRadial);
+				const radialRoutes = isRadial
+					? routeRadialGraph(graphData.edges, nodeMap)
+					: null;
+				const bundles = radialRoutes
+					? [...radialRoutes.bundles, ...radialRoutes.sharedSegments]
+					: buildLoopBundles(loopEdges, nodeMap, false);
 				const byEdge = new Map(
 					bundles.flatMap((bundle) =>
 						bundle.edges.map(
@@ -1155,8 +1168,9 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 						)
 					)
 				);
-				const paths = new Map<GraphEdge, string>();
-				loopEdges.forEach((edge, index) => {
+				const paths =
+					radialRoutes?.renderPaths ?? new Map<GraphEdge, string>();
+				(isRadial ? [] : loopEdges).forEach((edge, index) => {
 					const source = nodeMap.get(edge.source),
 						target = nodeMap.get(edge.target);
 					if (!source || !target) return;
@@ -1197,15 +1211,17 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				.attr('class', 'arc-trunk')
 				.attr('fill', 'none')
 				.attr('stroke', (bundle) => colorForTarget(bundle.target))
-				.attr('stroke-width', 1.8)
+				.attr('stroke-width', isRadial ? 1.25 : 1.8)
 				.attr('stroke-linecap', 'round')
 				.attr('stroke-linejoin', 'round')
 				.attr('stroke-dasharray', '7,6')
-				.attr('marker-end', 'url(#arrow-loop)')
+				.attr('marker-end', (bundle) =>
+					bundle.hasArrow === false ? null : 'url(#arrow-loop)'
+				)
 				.attr('d', (bundle) => {
 					const target = nodeMap.get(bundle.target);
 					if (!target) return '';
-					return routeBundleTrunk(bundle, target);
+					return bundle.path ?? routeBundleTrunk(bundle, target);
 				});
 
 			// Individual branches converge on the shared collector. Only
@@ -1217,7 +1233,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				.attr('class', 'arc-path')
 				.attr('fill', 'none')
 				.attr('stroke', (edge) => colorForTarget(edge.target))
-				.attr('stroke-width', 1.5)
+				.attr('stroke-width', isRadial ? 1.15 : 1.5)
 				.attr('stroke-linecap', 'round')
 				.attr('stroke-linejoin', 'round')
 				.attr('stroke-dasharray', '7,6')
@@ -1244,7 +1260,9 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 					const src = nodeMap.get(edge.source);
 					const tgt = nodeMap.get(edge.target);
 					if (!src || !tgt) return '';
-					return routeNormalEdge(src, tgt, isRadial);
+					return isRadial
+						? (routeCache.paths.get(edge) ?? '')
+						: routeNormalEdge(src, tgt, false);
 				});
 
 			// ── Nodes ─────────────────────────────────────────────────────
