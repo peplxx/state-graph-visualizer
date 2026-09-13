@@ -1,6 +1,24 @@
+import { PRESETS } from '../traversal/api';
+import {
+	createStrategyWorkspace,
+	openStrategyDocument,
+	type StrategyEditorInput
+} from '../traversal/strategyWorkspace';
+import { type HelpTopic } from '../help/topics';
+import {
+	createSimulatorState,
+	emptyTraversalLibrary,
+	strategySchema,
+	validateRun
+} from '../traversal/state';
+import { defaultStarts } from '../traversal/engine';
 import { findIdenticalGraph, DuplicateGraphError } from './graphIdentity';
 import { normalizeLayoutName } from '../core/layoutConfig';
-import { graphSchema, createExplorerState } from './explorerState';
+import {
+	graphSchema,
+	createExplorerState,
+	explorerGraphSnapshot
+} from './explorerState';
 import { parseFile, serializeToYAML } from '../core/parser';
 import type { GraphFile } from '../types/graph';
 import { windowRegistry, getWindowDefinition } from './registry';
@@ -8,7 +26,8 @@ import type { Workspace, WindowKind, WindowTab } from './types';
 
 export function emptyWorkspace(): Workspace {
 	return {
-		version: 2,
+		version: 3,
+		traversalLibrary: emptyTraversalLibrary(),
 		graphs: [],
 		tabs: [],
 		activeId: null,
@@ -66,7 +85,7 @@ export function restoreWorkspace(value: unknown): {
 	const raw = value as Record<string, unknown>;
 	if (
 		!raw ||
-		(raw.version !== 1 && raw.version !== 2) ||
+		(raw.version !== 1 && raw.version !== 2 && raw.version !== 3) ||
 		!Array.isArray(raw.tabs)
 	)
 		throw new Error(
@@ -75,7 +94,7 @@ export function restoreWorkspace(value: unknown): {
 	const tabs: WindowTab[] = [];
 	const graphs: Workspace['graphs'] = [];
 	const warnings: string[] = [];
-	if (raw.version === 2 && Array.isArray(raw.graphs)) {
+	if ((raw.version === 2 || raw.version === 3) && Array.isArray(raw.graphs)) {
 		for (const item of raw.graphs) {
 			try {
 				if (
@@ -98,6 +117,60 @@ export function restoreWorkspace(value: unknown): {
 			}
 		}
 	}
+	const traversalLibrary = emptyTraversalLibrary(false);
+	if (raw.version === 3) {
+		const saved = raw.traversalLibrary as
+			| Record<string, unknown>
+			| undefined;
+		for (const kind of ['strategies', 'records'] as const) {
+			if (saved && !Array.isArray(saved[kind]))
+				warnings.push(`Could not restore traversal ${kind}.`);
+			for (const item of Array.isArray(saved?.[kind])
+				? (saved[kind] as unknown[])
+				: []) {
+				try {
+					if (kind === 'strategies') {
+						const strategy = strategySchema.parse(item);
+						if (
+							traversalLibrary.strategies.some(
+								(s) => s.id === strategy.id
+							)
+						)
+							throw new Error();
+						traversalLibrary.strategies.push(strategy);
+					} else {
+						const record = validateRun(item);
+						if (
+							traversalLibrary.records.some(
+								(r) => r.id === record.id
+							)
+						)
+							throw new Error();
+						traversalLibrary.records.push(record);
+					}
+				} catch {
+					warnings.push(
+						`Could not restore a traversal ${kind === 'records' ? 'record' : 'strategy'}. Other items are available.`
+					);
+				}
+			}
+		}
+	}
+	const defaultsInitialized =
+		raw.version === 3 &&
+		(raw.traversalLibrary as Record<string, unknown> | undefined)
+			?.defaultsInitialized === true;
+	if (!defaultsInitialized) {
+		traversalLibrary.strategies.push(
+			...PRESETS.filter(
+				(preset) =>
+					!traversalLibrary.strategies.some(
+						(strategy) => strategy.id === preset.id
+					)
+			).map(({ id, name, source }) => ({ id, name, source }))
+		);
+	}
+	traversalLibrary.defaultsInitialized = true;
 	for (const item of raw.tabs) {
 		try {
 			if (
@@ -131,6 +204,18 @@ export function restoreWorkspace(value: unknown): {
 			);
 		}
 	}
+	// Older sessions may contain one help tab per topic. Keep the active topic.
+	const helpTabs = tabs.filter((tab) => tab.kind === 'help');
+	const help = helpTabs.find((tab) => tab.id === raw.activeId) ?? helpTabs[0];
+	for (let i = tabs.length - 1; i >= 0; i--) {
+		const tab = tabs[i];
+		if (tab.kind === 'help') {
+			if (tab.id !== help?.id) tabs.splice(i, 1);
+			else tab.title = 'Help';
+		}
+		if (tab.kind === 'strategies' && !tab.customTitle)
+			tab.title = 'Strategy editor';
+	}
 	for (const tab of tabs) {
 		if (
 			tab.kind === 'explorer' &&
@@ -154,7 +239,8 @@ export function restoreWorkspace(value: unknown): {
 	}
 	return {
 		workspace: {
-			version: 2,
+			version: 3,
+			traversalLibrary,
 			graphs,
 			tabs,
 			activeId:
@@ -191,7 +277,9 @@ export function importGraph(
 export function openGraph(workspace: Workspace, graphId: string): Workspace {
 	const graph = workspace.graphs.find((g) => g.id === graphId);
 	if (!graph) return workspace;
-	const existing = workspace.tabs.find((t) => t.graphId === graphId);
+	const existing = workspace.tabs.find(
+		(t) => t.graphId === graphId && t.kind === 'explorer'
+	);
 	if (existing) return { ...workspace, activeId: existing.id };
 	const next = addWindow(workspace, 'explorer');
 	const tab = next.tabs[next.tabs.length - 1];
@@ -215,5 +303,124 @@ export function unloadGraph(workspace: Workspace, graphId: string): Workspace {
 	return {
 		...next,
 		graphs: next.graphs.filter((graph) => graph.id !== graphId)
+	};
+}
+
+export function openTraversal(
+	workspace: Workspace,
+	graphId: string
+): Workspace {
+	const graph = workspace.graphs.find((g) => g.id === graphId);
+	if (!graph) return workspace;
+	const explorer = workspace.tabs.find(
+		(tab) => tab.graphId === graphId && tab.kind === 'explorer'
+	);
+	const source = explorer?.kind === 'explorer' ? explorer.state : null;
+	const snapshot = source
+		? (explorerGraphSnapshot(source) ?? structuredClone(graph.graph))
+		: structuredClone(graph.graph);
+	const state = {
+		...createSimulatorState(),
+		graphData: snapshot,
+		layout:
+			source?.layout ?? normalizeLayoutName(snapshot.layout?.algorithm),
+		...(source
+			? {
+					appearance: {
+						showAreas: source.showAreas,
+						hiddenAreaIds: [...source.hiddenAreaIds],
+						showDeadlineBadges: source.showDeadlineBadges
+					}
+				}
+			: {}),
+		filename: graph.filename,
+		starts: defaultStarts(snapshot)
+	};
+	const tab: WindowTab = {
+		id: crypto.randomUUID(),
+		kind: 'traversal',
+		graphId,
+		title: `Traversal · ${graph.filename}`,
+		customTitle: false,
+		state
+	};
+	return {
+		...workspace,
+		nextExplorer: workspace.nextExplorer + 1,
+		tabs: [...workspace.tabs, tab],
+		activeId: tab.id
+	};
+}
+
+export function openHelp(workspace: Workspace, topic: HelpTopic): Workspace {
+	const helpTabs = workspace.tabs.filter((tab) => tab.kind === 'help');
+	const existing =
+		helpTabs.find((tab) => tab.id === workspace.activeId) ?? helpTabs[0];
+	if (existing)
+		return {
+			...workspace,
+			activeId: existing.id,
+			tabs: workspace.tabs
+				.filter((tab) => tab.kind !== 'help' || tab.id === existing.id)
+				.map((tab) =>
+					tab.id === existing.id
+						? {
+								...existing,
+								kind: 'help' as const,
+								title: 'Help',
+								state: { topic }
+							}
+						: tab
+				)
+		};
+	const tab: WindowTab = {
+		id: crypto.randomUUID(),
+		kind: 'help',
+		title: 'Help',
+		customTitle: false,
+		state: { topic }
+	};
+	return {
+		...workspace,
+		nextExplorer: workspace.nextExplorer + 1,
+		tabs: [...workspace.tabs, tab],
+		activeId: tab.id
+	};
+}
+
+export function openStrategies(
+	workspace: Workspace,
+	input?: StrategyEditorInput
+): Workspace {
+	const existing = workspace.tabs.find((tab) => tab.kind === 'strategies');
+	if (existing?.kind === 'strategies')
+		return {
+			...workspace,
+			activeId: existing.id,
+			tabs: workspace.tabs.map((tab) =>
+				tab.id === existing.id
+					? {
+							...existing,
+							state: input
+								? openStrategyDocument(existing.state, input)
+								: existing.state
+						}
+					: tab
+			)
+		};
+	const tab: WindowTab = {
+		id: crypto.randomUUID(),
+		kind: 'strategies',
+		title: 'Strategy editor',
+		customTitle: false,
+		state: input
+			? openStrategyDocument(createStrategyWorkspace(), input)
+			: createStrategyWorkspace()
+	};
+	return {
+		...workspace,
+		nextExplorer: workspace.nextExplorer + 1,
+		tabs: [...workspace.tabs, tab],
+		activeId: tab.id
 	};
 }

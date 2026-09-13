@@ -1,4 +1,4 @@
-import { routeRadialGraph } from './geometry/radialRoutes';
+import { routeRadialGraph, routeTreeLoopbacks } from './geometry/radialRoutes';
 import {
 	useEffect,
 	useRef,
@@ -39,12 +39,9 @@ import { svgToDataUrl } from './render/exportSvg';
 import { findRootPath } from './interaction/pathHighlight';
 import { nodeCircleRadius } from './geometry/nodes';
 import {
-	buildLoopBundles,
 	edgeId,
 	loopbackColor,
-	routeBundleBranch,
 	routeBundleTrunk,
-	routeLoopEdge,
 	routeNormalEdge
 } from './geometry/edges';
 import { computeHull, getLabelTransform, hullToPath } from './geometry/hull';
@@ -70,6 +67,7 @@ export type {
 const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 	(
 		{
+			traversal,
 			initialView,
 			initialSelectedIds = [],
 			initialSelectedAreaId,
@@ -101,6 +99,28 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 		const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(
 			null
 		);
+		const traversalEnabled = !!traversal;
+		useEffect(() => {
+			const wrapper = wrapperRef.current;
+			if (!traversalEnabled || !wrapper) return;
+			let previous = wrapper.getBoundingClientRect();
+			const observer = new ResizeObserver(() => {
+				const next = wrapper.getBoundingClientRect();
+				const dx = (next.width - previous.width) / 2;
+				const dy = (next.height - previous.height) / 2;
+				previous = next;
+				if ((!dx && !dy) || !svgRef.current || !zoomRef.current) return;
+				const transform = d3.zoomTransform(svgRef.current);
+				d3.select(svgRef.current).call(
+					zoomRef.current.transform,
+					d3.zoomIdentity
+						.translate(transform.x + dx, transform.y + dy)
+						.scale(transform.k)
+				);
+			});
+			observer.observe(wrapper);
+			return () => observer.disconnect();
+		}, [traversalEnabled]);
 		const deadlineBadgesVisibleRef = useRef(showDeadlineBadges);
 		deadlineBadgesVisibleRef.current = showDeadlineBadges;
 		useEffect(() => {
@@ -1155,38 +1175,11 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				routeCache.graph !== graphData ||
 				routeCache.layout !== activeLayout
 			) {
-				const radialRoutes = isRadial
+				const routes = isRadial
 					? routeRadialGraph(graphData.edges, nodeMap)
-					: null;
-				const bundles = radialRoutes
-					? [...radialRoutes.bundles, ...radialRoutes.sharedSegments]
-					: buildLoopBundles(loopEdges, nodeMap, false);
-				const byEdge = new Map(
-					bundles.flatMap((bundle) =>
-						bundle.edges.map(
-							(edge) => [edgeId(edge), bundle] as const
-						)
-					)
-				);
-				const paths =
-					radialRoutes?.renderPaths ?? new Map<GraphEdge, string>();
-				(isRadial ? [] : loopEdges).forEach((edge, index) => {
-					const source = nodeMap.get(edge.source),
-						target = nodeMap.get(edge.target);
-					if (!source || !target) return;
-					const bundle = byEdge.get(edgeId(edge));
-					paths.set(
-						edge,
-						bundle
-							? routeBundleBranch(source, bundle, target)
-							: routeLoopEdge(
-									source,
-									target,
-									nodeMap.values(),
-									index
-								)
-					);
-				});
+					: routeTreeLoopbacks(loopEdges, nodeMap);
+				const bundles = [...routes.bundles, ...routes.sharedSegments];
+				const paths = routes.renderPaths;
 				routeCache = {
 					graph: graphData,
 					layout: activeLayout,
@@ -1211,7 +1204,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				.attr('class', 'arc-trunk')
 				.attr('fill', 'none')
 				.attr('stroke', (bundle) => colorForTarget(bundle.target))
-				.attr('stroke-width', isRadial ? 1.25 : 1.8)
+				.attr('stroke-width', 1.25)
 				.attr('stroke-linecap', 'round')
 				.attr('stroke-linejoin', 'round')
 				.attr('stroke-dasharray', '7,6')
@@ -1233,7 +1226,7 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 				.attr('class', 'arc-path')
 				.attr('fill', 'none')
 				.attr('stroke', (edge) => colorForTarget(edge.target))
-				.attr('stroke-width', isRadial ? 1.15 : 1.5)
+				.attr('stroke-width', 1.15)
 				.attr('stroke-linecap', 'round')
 				.attr('stroke-linejoin', 'round')
 				.attr('stroke-dasharray', '7,6')
@@ -1627,6 +1620,96 @@ const GraphViewer = forwardRef<GraphViewerHandle, GraphViewerProps>(
 			clearHoverPath,
 			fitView,
 			emitSelection
+		]);
+
+		useEffect(() => {
+			if (!gRef.current) return;
+			const expanded = new Set(traversal?.expandedIds ?? []);
+			const ranks = new Map(
+				(traversal?.queueIds ?? []).map((id, i) => [id, i + 1])
+			);
+			d3.select(gRef.current)
+				.selectAll<SVGGElement, NodePos>('.node-group')
+				.each(function (d) {
+					const group = d3.select(this);
+					group
+						.classed('traversal-node', !!traversal)
+						.classed(
+							'traversal-current',
+							traversal?.currentId === d.id
+						);
+					this.style.setProperty(
+						'--traversal-opacity',
+						String(
+							expanded.has(d.id)
+								? 1
+								: ranks.has(d.id)
+									? 0.6
+									: 0.15
+						)
+					);
+					group.selectAll('.traversal-queue-badge').remove();
+					const rank = ranks.get(d.id);
+					if (traversal && rank !== undefined) {
+						const badge = group
+							.append('g')
+							.attr('class', 'traversal-queue-badge')
+							.attr(
+								'transform',
+								`translate(0,${-(d.shape === 'circle' ? d.radius : d.height / 2) - 14})`
+							)
+							.attr('pointer-events', 'none');
+						const width = Math.max(
+							30,
+							String(rank).length * 8 + 20
+						);
+						badge
+							.append('rect')
+							.attr('x', -width / 2)
+							.attr('y', -11)
+							.attr('width', width)
+							.attr('height', 22)
+							.attr('rx', 6);
+						badge
+							.append('text')
+							.attr('text-anchor', 'middle')
+							.attr('dy', '0.35em')
+							.text(`#${rank}`);
+					}
+				});
+			const edgeOpacity = (edge: GraphEdge) => {
+				if (expanded.has(edge.source)) {
+					return expanded.has(edge.target) ||
+						ranks.get(edge.target) === 1
+						? 1
+						: 0.6;
+				}
+				return ranks.get(edge.source) === 1
+					? 0.3
+					: ranks.has(edge.source)
+						? 0.16
+						: 0.07;
+			};
+			const layer = d3.select(gRef.current);
+			layer
+				.selectAll<SVGPathElement, GraphEdge>('.edge-path, .arc-path')
+				.classed('traversal-edge', !!traversal)
+				.style('--traversal-edge-opacity', (edge) =>
+					String(edgeOpacity(edge))
+				);
+			// A shared return-path collector uses the strongest of its logical edges.
+			layer
+				.selectAll<SVGPathElement, LoopBundle>('.arc-trunk')
+				.classed('traversal-edge', !!traversal)
+				.style('--traversal-edge-opacity', (bundle) =>
+					String(Math.max(0.07, ...bundle.edges.map(edgeOpacity)))
+				);
+		}, [
+			traversal,
+			graphData,
+			activeLayout,
+			showLoopbacks,
+			showNormalEdges
 		]);
 
 		// ── Apply color overrides without full redraw ────────────────────

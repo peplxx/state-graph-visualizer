@@ -74,6 +74,11 @@ export interface GraphViewState {
 }
 
 export interface GraphViewerProps {
+	traversal?: {
+		expandedIds: readonly string[];
+		queueIds: readonly string[];
+		currentId: string | null;
+	};
 	initialView?: GraphViewState | null;
 	initialSelectedIds?: string[];
 	initialSelectedAreaId?: string;

@@ -1,5 +1,11 @@
+import {
+	createStrategyWorkspace,
+	strategyWorkspaceSchema
+} from '../traversal/strategyWorkspace';
+import { helpStateSchema } from '../help/topics';
+import { createSimulatorState, validateSimulator } from '../traversal/state';
 import { lazy } from 'react';
-import { PanelsTopLeft } from 'lucide-react';
+import { PanelsTopLeft, BookOpen, Code2 } from 'lucide-react';
 import {
 	createExplorerState,
 	explorerStateSchema,
@@ -17,6 +23,44 @@ const ExplorerWindow = lazy(() =>
 export const windowRegistry: {
 	[K in keyof WindowStateMap]: WindowDefinition<WindowStateMap[K]>;
 } = {
+	strategies: {
+		label: 'Strategy editor',
+		Icon: Code2,
+		create: createStrategyWorkspace,
+		validate: (value) => strategyWorkspaceSchema.parse(value),
+		Component: lazy(() => import('../traversal/StrategiesWindow')),
+		dirty: () => false,
+		documentChanged: () => false,
+		fileTitle: () => 'Strategy editor',
+		save: (state) => state
+	},
+	help: {
+		label: 'Help',
+		Icon: BookOpen,
+		create: () => ({ topic: 'overview' }),
+		validate: (value) => helpStateSchema.parse(value),
+		Component: lazy(() => import('../help/HelpWindow')),
+		dirty: () => false,
+		documentChanged: () => false,
+		fileTitle: () => 'Help',
+		save: (state) => state
+	},
+	traversal: {
+		label: 'Traversal Simulator',
+		Icon: PanelsTopLeft,
+		create: createSimulatorState,
+		validate: validateSimulator,
+		Component: lazy(() =>
+			import('../traversal/SimulatorWindow').then((m) => ({
+				default: m.SimulatorWindow
+			}))
+		),
+		dirty: () => false,
+		documentChanged: () => false,
+		fileTitle: (state) =>
+			state.filename ? `Traversal · ${state.filename}` : null,
+		save: (state) => state
+	},
 	explorer: {
 		label: 'Explorer',
 		Icon: PanelsTopLeft,

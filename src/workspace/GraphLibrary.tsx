@@ -9,7 +9,12 @@ import {
 	ArrowUpRight,
 	PanelsTopLeft,
 	ChevronDown,
-	FolderOpen
+	FolderOpen,
+	Route,
+	Code2,
+	BookOpen,
+	ArrowLeft,
+	ChevronRight
 } from 'lucide-react';
 import type { LibraryGraph } from './types';
 
@@ -134,60 +139,90 @@ export function WorkspaceHome({
 	graphs,
 	onUpload,
 	onFiles,
-	onExplorer
+	onOpenWindow,
+	onHelp
 }: Omit<Props, 'onOpen' | 'onUnload' | 'onDownload'> & {
-	onExplorer: (anchor: HTMLButtonElement) => void;
+	onOpenWindow: (
+		anchor: HTMLButtonElement,
+		kind: 'explorer' | 'traversal'
+	) => void;
+	onHelp: () => void;
 }) {
 	return (
 		<main className="workspace-home">
 			<div className="workspace-home-content">
 				<h1>Your workspace</h1>
-				<p>Load a graph, then open it in an Explorer.</p>
+				<p>Explore graphs and try your own traversal strategies.</p>
 				<div className="workspace-bento">
 					<UploadTarget
 						onFiles={onFiles}
-						className="bento-card bento-upload"
 						onUpload={onUpload}
+						className="bento-card bento-upload"
 					>
 						<span className="bento-icon">
 							<Upload size={21} />
 						</span>
 						<span className="bento-copy">
 							<strong>Upload graph</strong>
-							<span>Drop files here or click to browse.</span>
+							<span>Drop YAML files or browse.</span>
 						</span>
 						<ArrowUpRight className="bento-arrow" size={20} />
 					</UploadTarget>
 					<button
-						type="button"
-						className="bento-card bento-explorer"
-						onClick={(event) => onExplorer(event.currentTarget)}
+						className="bento-card"
+						onClick={(event) =>
+							onOpenWindow(event.currentTarget, 'explorer')
+						}
 					>
 						<span className="bento-icon">
 							<PanelsTopLeft size={21} />
 						</span>
 						<span className="bento-copy">
-							<strong>Open Explorer</strong>
+							<strong>Explorer</strong>
+							<span>Inspect states and style your graph.</span>
+						</span>
+						<ArrowUpRight className="bento-arrow" size={20} />
+					</button>
+					<button
+						className="bento-card"
+						onClick={(event) =>
+							onOpenWindow(event.currentTarget, 'traversal')
+						}
+					>
+						<span className="bento-icon">
+							<Route size={21} />
+						</span>
+						<span className="bento-copy">
+							<strong>Traversal Simulator</strong>
 							<span>
-								Inspect states, transitions, and schedules.
+								Set priorities, step through and replay.
 							</span>
+						</span>
+						<ArrowUpRight className="bento-arrow" size={20} />
+					</button>
+					<button className="bento-card" onClick={onHelp}>
+						<span className="bento-icon">
+							<BookOpen size={21} />
+						</span>
+						<span className="bento-copy">
+							<strong>Help & guides</strong>
+							<span>Learn the tools and strategy API.</span>
 						</span>
 						<ArrowUpRight className="bento-arrow" size={20} />
 					</button>
 					<div className="bento-library">
 						<button
-							type="button"
 							className="loaded-graphs-button"
-							title="Browse loaded graphs"
 							aria-haspopup="dialog"
-							onClick={(event) => onExplorer(event.currentTarget)}
+							onClick={(event) =>
+								onOpenWindow(event.currentTarget, 'explorer')
+							}
 						>
 							<Network size={14} />
 							<span>
 								{graphs.length}{' '}
-								{graphs.length === 1
-									? 'graph loaded'
-									: 'graphs loaded'}
+								{graphs.length === 1 ? 'graph' : 'graphs'}{' '}
+								loaded
 							</span>
 							<ChevronDown size={12} />
 						</button>
@@ -199,10 +234,21 @@ export function WorkspaceHome({
 	);
 }
 export function ExplorerPicker({
+	kind,
+	onKindChange,
+	onSavedTraversals,
+	onStrategies,
 	onClose,
 	anchor,
 	...props
-}: Props & { onClose: () => void; anchor: HTMLElement | null }) {
+}: Props & {
+	onSavedTraversals: () => void;
+	onStrategies: () => void;
+	kind: 'explorer' | 'traversal' | null;
+	onKindChange: (kind: 'explorer' | 'traversal' | null) => void;
+	onClose: () => void;
+	anchor: HTMLElement | null;
+}) {
 	const ref = React.useRef<HTMLDivElement>(null);
 	const closeRef = React.useRef(onClose);
 	closeRef.current = onClose;
@@ -231,7 +277,11 @@ export function ExplorerPicker({
 			});
 		};
 		place();
-		ref.current?.querySelector<HTMLButtonElement>('button')?.focus();
+		ref.current
+			?.querySelector<HTMLButtonElement>(
+				kind && props.graphs.length ? '.library-graph' : 'button'
+			)
+			?.focus();
 		const outside = (event: PointerEvent) => {
 			if (
 				!ref.current?.contains(event.target as Node) &&
@@ -274,35 +324,111 @@ export function ExplorerPicker({
 			document.removeEventListener('pointerdown', outside);
 			document.removeEventListener('keydown', key, true);
 		};
-	}, [anchor]);
+	}, [anchor, kind, props.graphs.length]);
 	return createPortal(
 		<div
 			ref={ref}
 			role="dialog"
-			aria-label="Open Explorer"
+			aria-label="New window"
 			className="explorer-picker"
 			style={position}
 		>
-			<div className="library-caption">Open Explorer</div>
-			{props.graphs.length ? (
-				<GraphList
-					graphs={props.graphs}
-					onOpen={props.onOpen}
-					onUnload={props.onUnload}
-					onDownload={props.onDownload}
-				/>
+			{kind === null ? (
+				<>
+					<div className="library-caption">New window</div>
+					<div className="window-type-choices">
+						<button
+							type="button"
+							className="window-type-choice"
+							onClick={() => onKindChange('explorer')}
+						>
+							<span className="window-type-icon">
+								<PanelsTopLeft size={17} />
+							</span>
+							<span>
+								<strong>Explorer</strong>
+								<small>Inspect and style a graph</small>
+							</span>
+							<ChevronRight size={16} />
+						</button>
+						<button
+							type="button"
+							className="window-type-choice"
+							onClick={() => onKindChange('traversal')}
+						>
+							<span className="window-type-icon">
+								<Route size={17} />
+							</span>
+							<span>
+								<strong>Traversal Simulator</strong>
+								<small>Define and replay an exploration</small>
+							</span>
+							<ChevronRight size={16} />
+						</button>
+					</div>
+				</>
 			) : (
-				<p className="library-empty">
-					Upload a graph to open an Explorer.
-				</p>
+				<>
+					<div className="window-picker-heading">
+						<button
+							type="button"
+							aria-label="Back to window types"
+							title="Back to window types"
+							onClick={() => onKindChange(null)}
+						>
+							<ArrowLeft size={16} />
+						</button>
+						<div>
+							<strong>
+								{kind === 'explorer'
+									? 'Explorer'
+									: 'Traversal Simulator'}
+							</strong>
+							<small>Choose a graph</small>
+						</div>
+					</div>
+					{kind === 'traversal' && (
+						<button
+							type="button"
+							className="saved-traversals-button"
+							onClick={onStrategies}
+						>
+							<Code2 size={15} />
+							Strategy editor
+						</button>
+					)}
+					{props.graphs.length ? (
+						<GraphList
+							graphs={props.graphs}
+							onOpen={props.onOpen}
+							onUnload={props.onUnload}
+							onDownload={props.onDownload}
+						/>
+					) : (
+						<p className="library-empty">
+							Upload a graph to open this window.
+						</p>
+					)}
+					<UploadTarget
+						onFiles={props.onFiles}
+						className="library-upload"
+						onUpload={props.onUpload}
+					>
+						<Upload size={15} /> Upload graph
+					</UploadTarget>
+					{kind === 'traversal' && (
+						<>
+							<button
+								type="button"
+								className="saved-traversals-button"
+								onClick={onSavedTraversals}
+							>
+								<FolderOpen size={15} /> Open saved recordings
+							</button>
+						</>
+					)}
+				</>
 			)}
-			<UploadTarget
-				onFiles={props.onFiles}
-				className="library-upload"
-				onUpload={props.onUpload}
-			>
-				<Upload size={15} /> Upload graph
-			</UploadTarget>
 		</div>,
 		document.body
 	);

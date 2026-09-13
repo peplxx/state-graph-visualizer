@@ -509,10 +509,31 @@ export function routeRadialEdges(
 	return { paths, polylines, diagnostics };
 }
 
-/** Merge crowded arrivals only after routing their shared trunk around obstacles. */
+/** Shared routing uses positioned nodes; it does not depend on radial coordinates. */
 export function routeRadialGraph(
 	edges: GraphEdge[],
 	nodeMap: Map<string, NodePos>
+) {
+	return routeGraphWithCollectors(edges, nodeMap, true);
+}
+
+/** Tree transitions remain straight; return edges use the same obstacle-aware collectors. */
+export function routeTreeLoopbacks(
+	edges: GraphEdge[],
+	nodeMap: Map<string, NodePos>
+) {
+	return routeGraphWithCollectors(
+		edges.filter((edge) => edge.type === 'loop'),
+		nodeMap,
+		false
+	);
+}
+
+/** Merge crowded arrivals only after routing their shared trunk around obstacles. */
+function routeGraphWithCollectors(
+	edges: GraphEdge[],
+	nodeMap: Map<string, NodePos>,
+	isRadial: boolean
 ): RadialRoutes & {
 	bundles: LoopBundle[];
 	sharedSegments: LoopBundle[];
@@ -522,7 +543,7 @@ export function routeRadialGraph(
 	const bundles = buildLoopBundles(
 		edges.filter((e) => e.type === 'loop'),
 		nodeMap,
-		true
+		isRadial
 	).filter((b) => b.edges.length >= 2);
 	const routedNodes = new Map(nodeMap),
 		branches = new Map<GraphEdge, GraphEdge>(),

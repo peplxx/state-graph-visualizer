@@ -145,3 +145,38 @@ export function downloadExplorer(state: ExplorerState): void {
 	a.click();
 	setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+// Materialize appearance without a YAML round-trip, preserving edge metadata,
+// IDs, labels and the exact transition order used by the traversal.
+export function explorerGraphSnapshot(state: ExplorerState): GraphFile | null {
+	if (!state.graphData) return null;
+	return structuredClone({
+		...state.graphData,
+		nodes: state.graphData.nodes.map((node) => {
+			const override = state.colorOverrides.get(node.id);
+			return {
+				...node,
+				fillColor: override?.fill ?? node.fillColor,
+				borderColor: override?.border ?? node.borderColor,
+				hatch:
+					override?.hatch === 'none'
+						? undefined
+						: (override?.hatch ?? node.hatch)
+			};
+		}),
+		areas: state.graphData.areas?.map((area) => {
+			const override = state.areaOverrides.get(area.id);
+			return {
+				...area,
+				fillColor: override?.fill ?? area.fillColor,
+				borderColor: override?.border ?? area.borderColor,
+				hatch:
+					override?.hatch === 'none'
+						? undefined
+						: (override?.hatch ?? area.hatch),
+				labelPosition: override?.labelPosition ?? area.labelPosition,
+				nodeIds: override?.nodes ?? area.nodeIds
+			};
+		})
+	});
+}

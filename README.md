@@ -48,3 +48,15 @@ bun run fmt:check  # Formatting check
 ```
 
 GitHub Actions runs these checks on pushes and pull requests. Run `bun run fmt` to fix formatting locally; file exclusions are defined in `.oxfmtrc.json`.
+
+## Simulate a traversal
+
+Choose **New window → Traversal Simulator**, then a loaded graph. Each simulator is independent of Explorer and other runs. Select start nodes if needed and press **Start traversal** to evaluate the initial queue.
+
+Write a synchronous TypeScript `priority(state, context)` function returning a finite number or a non-empty tuple of finite numbers. Smaller values come first; tuples compare left to right and equal priorities preserve insertion order. The result kind and tuple length must remain consistent throughout a run. The editor checks types and offers field completions with **Ctrl+Space**. Inputs are read-only; use a pure function for reproducible new runs. Imports are not supported, and a priority evaluation exceeding two seconds is stopped in a worker without committing the unfinished step.
+
+Each step expands the first queued node, considers all its outgoing transitions (including returns), adds newly discovered states once, and evaluates the remaining queue for the next step. `state` includes flattened task data (`c`, `d`, `release`), `depth`, `parentId`, and `insertionOrder`. `context` includes `graph`, `system`, `step`, `expandedIds`, and insertion-ordered `queueIds`. BFS, DFS, and most-pending-jobs examples are included. This explores the supplied graph; it does not generate new states or implement pruning/schedulability tests from the papers.
+
+Use **Next step**, **Play**, or **To end**, and rewind with the timeline. The queue and node badges show the priorities at the selected step. Applying changed code starts a new branch at that step and automatically saves the previous branch in **Records**. Replay reads recorded results without executing the draft. Continuing beyond the computed history evaluates the active recorded strategy.
+
+Save named strategies to use with any graph. **Save recording** keeps a run, its strategy revisions, and a graph snapshot independently of tabs and the graph library. Saved records are also accessible through **New window → Traversal Simulator → Open saved recordings**. The workspace, draft, timeline position, and view autosave in this browser and restore paused. Storage errors are reported without discarding the in-memory session.

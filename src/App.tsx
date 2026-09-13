@@ -1,3 +1,5 @@
+import { HelpMenu } from './help/HelpMenu';
+import { TraversalLibraryContext } from './traversal/LibraryContext';
 import React from 'react';
 import { CheckCircle2, Info, X } from 'lucide-react';
 import {
@@ -20,6 +22,10 @@ import {
 	importGraph,
 	unloadGraph,
 	openGraph,
+	openTraversal,
+	openHelp,
+	openStrategies,
+	addWindow,
 	closeWindow,
 	emptyWorkspace,
 	moveWindow,
@@ -42,8 +48,12 @@ export default function App() {
 	const pickerAnchor = React.useRef<HTMLElement | null>(null);
 	const showPicker = (anchor: HTMLButtonElement) => {
 		pickerAnchor.current = anchor;
+		setPickerKind(null);
 		setPickerOpen((open) => !open);
 	};
+	const [pickerKind, setPickerKind] = React.useState<
+		'explorer' | 'traversal' | null
+	>(null);
 	const [pickerOpen, setPickerOpen] = React.useState(false);
 	const [uploading, setUploading] = React.useState(false);
 	const [ready, setReady] = React.useState(false);
@@ -121,43 +131,54 @@ export default function App() {
 		const changedDocument = definition.documentChanged(old.state, state);
 		let graphs = current.current.graphs;
 		let graphId = old.graphId;
-		if (
-			state.graphData &&
-			(!graphId || old.state.documentId !== state.documentId)
-		) {
-			const existing = findIdenticalGraph(graphs, state.graphData);
-			if (existing) {
-				graphId = existing.id;
-				setNotice({
-					text: `This graph is already in your library as “${existing.filename}”.`,
-					success: false
-				});
-			} else {
-				graphId = crypto.randomUUID();
-				graphs = [
-					...graphs,
-					{
-						id: graphId,
-						filename: state.filename,
-						graph: state.graphData
-					}
-				];
-				setNotice({
-					text: `“${state.filename}” is ready to explore.`,
-					success: true
-				});
+		if (old.kind === 'explorer' && 'documentId' in state) {
+			if (
+				state.graphData &&
+				(!graphId || old.state.documentId !== state.documentId)
+			) {
+				const existing = findIdenticalGraph(graphs, state.graphData);
+				if (existing) {
+					graphId = existing.id;
+					setNotice({
+						text: `This graph is already in your library as “${existing.filename}”.`,
+						success: false
+					});
+				} else {
+					graphId = crypto.randomUUID();
+					graphs = [
+						...graphs,
+						{
+							id: graphId,
+							filename: state.filename,
+							graph: state.graphData
+						}
+					];
+					setNotice({
+						text: `“${state.filename}” is ready to explore.`,
+						success: true
+					});
+				}
+			} else if (
+				graphId &&
+				state.baselineYaml &&
+				old.state.baselineYaml !== state.baselineYaml
+			) {
+				const graph = parseFile(state.baselineYaml);
+				graphs = graphs.map((item) =>
+					item.id === graphId
+						? { ...item, graph, filename: state.filename }
+						: item
+				);
 			}
-		} else if (
-			graphId &&
-			state.baselineYaml &&
-			old.state.baselineYaml !== state.baselineYaml
+		}
+		if (
+			old.kind === 'traversal' &&
+			'graphData' in state &&
+			old.state.graphData !== state.graphData
 		) {
-			const graph = parseFile(state.baselineYaml);
-			graphs = graphs.map((item) =>
-				item.id === graphId
-					? { ...item, graph, filename: state.filename }
-					: item
-			);
+			graphId = state.graphData
+				? findIdenticalGraph(graphs, state.graphData)?.id
+				: undefined;
 		}
 		const title = old.customTitle
 			? old.title
@@ -187,10 +208,10 @@ export default function App() {
 		);
 		if (!graph) return;
 		const tab = current.current.tabs.find(
-			(item) => item.graphId === graphId
+			(item) => item.graphId === graphId && item.kind === 'explorer'
 		);
 		downloadExplorer(
-			tab?.state ?? {
+			(tab?.kind === 'explorer' ? tab.state : undefined) ?? {
 				...createExplorerState(),
 				graphData: graph.graph,
 				filename: graph.filename
@@ -201,7 +222,7 @@ export default function App() {
 		// Close the picker before showing the unsaved-changes dialog.
 		setPickerOpen(false);
 		const tab = current.current.tabs.find(
-			(item) => item.graphId === graphId
+			(item) => item.graphId === graphId && item.kind === 'explorer'
 		);
 		const action = () => commit(unloadGraph(current.current, graphId));
 		if (tab) guard(tab.id, action);
@@ -280,6 +301,12 @@ export default function App() {
 				>
 					<House size={17} />
 				</button>
+				<HelpMenu
+					onOpenStrategies={() =>
+						commit(openStrategies(current.current))
+					}
+					onOpen={(topic) => commit(openHelp(current.current, topic))}
+				/>
 			</header>
 			<input
 				ref={uploadRef}
@@ -350,7 +377,11 @@ export default function App() {
 								...current.current,
 								tabs: current.current.tabs.map((tab) =>
 									tab.id === id
-										? { ...tab, title, customTitle: true }
+										? {
+												...tab,
+												title,
+												customTitle: true
+											}
 										: tab
 								)
 							})
@@ -373,16 +404,43 @@ export default function App() {
 									</div>
 								}
 							>
-								<Component
-									key={active.id}
-									initialState={active.state}
-									onChange={(state) =>
-										updateWindow(active.id, state)
-									}
-									confirmDiscard={(action) =>
-										guard(active.id, action)
-									}
-								/>
+								<TraversalLibraryContext.Provider
+									value={{
+										library: workspace.traversalLibrary,
+										updateLibrary: (update) =>
+											commit({
+												...current.current,
+												traversalLibrary: update(
+													current.current
+														.traversalLibrary
+												)
+											})
+									}}
+								>
+									<Component
+										key={active.id}
+										onOpenStrategies={(input) =>
+											commit(
+												openStrategies(
+													current.current,
+													input
+												)
+											)
+										}
+										onOpenHelp={(topic) =>
+											commit(
+												openHelp(current.current, topic)
+											)
+										}
+										initialState={active.state}
+										onChange={(state) =>
+											updateWindow(active.id, state)
+										}
+										confirmDiscard={(action) =>
+											guard(active.id, action)
+										}
+									/>
+								</TraversalLibraryContext.Provider>
 							</React.Suspense>
 						</div>
 					) : (
@@ -390,20 +448,43 @@ export default function App() {
 							graphs={workspace.graphs}
 							onUpload={upload}
 							onFiles={(files) => void loadFiles(files)}
-							onExplorer={showPicker}
+							onOpenWindow={(anchor, kind) => {
+								showPicker(anchor);
+								setPickerKind(kind);
+							}}
+							onHelp={() =>
+								commit(openHelp(current.current, 'overview'))
+							}
 						/>
 					)}
 				</>
 			)}
 			{pickerOpen && (
 				<ExplorerPicker
+					onStrategies={() => {
+						commit(openStrategies(current.current));
+						setPickerOpen(false);
+					}}
+					onSavedTraversals={() => {
+						commit(addWindow(current.current, 'traversal'));
+						setPickerOpen(false);
+					}}
+					kind={pickerKind}
+					onKindChange={setPickerKind}
 					anchor={pickerAnchor.current}
 					onUnload={unload}
 					onDownload={download}
 					graphs={workspace.graphs}
 					onUpload={upload}
 					onFiles={(files) => void loadFiles(files)}
-					onOpen={open}
+					onOpen={(id) => {
+						commit(
+							pickerKind === 'traversal'
+								? openTraversal(current.current, id)
+								: openGraph(current.current, id)
+						);
+						setPickerOpen(false);
+					}}
 					onClose={() => setPickerOpen(false)}
 				/>
 			)}

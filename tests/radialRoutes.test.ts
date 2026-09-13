@@ -2,10 +2,12 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { parseFile } from '../src/core/parser';
 import { estimateNodeSize } from '../src/core/labelBuilder';
+import { computeTreePositions } from '../src/components/graphViewer/layout/tree';
 import { computeRadialPositions } from '../src/components/graphViewer/layout/radial';
 import {
 	routeRadialEdges,
 	routeRadialGraph,
+	routeTreeLoopbacks,
 	segmentHitsBox
 } from '../src/components/graphViewer/geometry/radialRoutes';
 import type { NodePos, Point } from '../src/components/graphViewer/types';
@@ -450,4 +452,126 @@ test('spatial obstacle index preserves routes when distant nodes cross its activ
 			edge.target
 		]);
 	}
+});
+
+describe('tree return routes', () => {
+	for (const file of readdirSync(
+		new URL('../examples/', import.meta.url)
+	).filter((file) => file.endsWith('.yaml'))) {
+		test(`${file}: return curves avoid nodes and join continuous shared collectors`, () => {
+			const graph = parseFile(
+				readFileSync(
+					new URL(`../examples/${file}`, import.meta.url),
+					'utf8'
+				)
+			);
+			const layout = computeTreePositions(
+				graph.nodes,
+				graph.edges,
+				estimateNodeSize(graph.nodes[0].tasks).width
+			);
+			const nodes = new Map(
+				graph.nodes.map((node) => [
+					node.id,
+					{
+						...node,
+						...layout.positions.get(node.id)!,
+						...estimateNodeSize(node.tasks),
+						radius: 20,
+						shape: 'rect' as const,
+						label: node.id,
+						isInitial: node.isInitial ?? false
+					}
+				])
+			);
+			const loops = graph.edges.filter((edge) => edge.type === 'loop');
+			const result = routeTreeLoopbacks(graph.edges, nodes);
+			expect(result.diagnostics.unresolved).toEqual([]);
+			expect(result.paths.size).toBe(loops.length);
+			const bundled = new Map<
+				GraphEdge,
+				(typeof result.bundles)[number]
+			>();
+			for (const bundle of result.bundles) {
+				expect(bundle.edges.length).toBeGreaterThanOrEqual(2);
+				const trunk = assertCurveClear(bundle.path!, nodes, [
+					bundle.target
+				]);
+				expectSamePoint(trunk[0], bundle.hub);
+				for (const edge of bundle.edges) {
+					expect(bundled.has(edge)).toBe(false);
+					bundled.set(edge, bundle);
+				}
+			}
+			for (const edge of loops) {
+				const bundle = bundled.get(edge);
+				const points = assertCurveClear(
+					result.paths.get(edge)!,
+					nodes,
+					bundle ? [edge.source] : [edge.source, edge.target]
+				);
+				if (bundle) expectSamePoint(points.at(-1)!, bundle.hub);
+				else {
+					const target = nodes.get(edge.target)!;
+					const end = points.at(-1)!;
+					expect(
+						Math.min(
+							Math.abs(
+								Math.abs(end.x - target.x) -
+									target.width / 2 -
+									1
+							),
+							Math.abs(
+								Math.abs(end.y - target.y) -
+									target.height / 2 -
+									1
+							)
+						)
+					).toBeLessThan(0.002);
+				}
+				const reconstructed = [
+					...drawnSegments(result.renderPaths.get(edge)!),
+					...result.sharedSegments
+						.filter((segment) => segment.edges.includes(edge))
+						.flatMap((segment) => drawnSegments(segment.path!))
+				];
+				expect(reconstructed.sort()).toEqual(
+					drawnSegments(result.paths.get(edge)!).sort()
+				);
+			}
+			for (const segment of result.sharedSegments) {
+				expect(segment.hasArrow).toBe(false);
+				expect(segment.edges.length).toBeGreaterThanOrEqual(2);
+				for (const edge of segment.edges)
+					for (const stroke of drawnSegments(segment.path!))
+						expect(
+							drawnSegments(result.renderPaths.get(edge)!)
+						).not.toContain(stroke);
+			}
+		});
+	}
+	test('self loops, parallel returns and normal-only input keep their logical identity', () => {
+		const nodes = new Map(
+			[
+				box('root', 0, 0),
+				box('blocker', 0, 100),
+				box('child', 0, 200)
+			].map((node) => [node.id, node])
+		);
+		const edges: GraphEdge[] = [
+			{ source: 'root', target: 'child', type: 'normal' },
+			{ source: 'child', target: 'root', type: 'loop' },
+			{ source: 'child', target: 'root', type: 'loop' },
+			{ source: 'child', target: 'child', type: 'loop' }
+		];
+		const result = routeTreeLoopbacks(edges, nodes);
+		expect(result.paths.size).toBe(3);
+		expect(result.diagnostics.unresolved).toEqual([]);
+		expect(routeTreeLoopbacks(edges, nodes)).toEqual(result);
+		const self = assertCurveClear(result.paths.get(edges[3])!, nodes, [
+			'child'
+		]);
+		expect(self[0]).not.toEqual(self.at(-1));
+		expect(routeTreeLoopbacks([edges[0]], nodes).paths.size).toBe(0);
+	});
 });

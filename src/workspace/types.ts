@@ -1,8 +1,12 @@
 import type { ComponentType } from 'react';
+import type { SimulatorState, TraversalLibrary } from '../traversal/types';
 import type { ExplorerState } from './explorerState';
 
 export interface WindowStateMap {
+	strategies: import('../traversal/strategyWorkspace').StrategyWorkspaceState;
+	help: import('../help/topics').HelpState;
 	explorer: ExplorerState;
+	traversal: SimulatorState;
 }
 export type WindowKind = keyof WindowStateMap;
 export type WindowTab = {
@@ -21,7 +25,8 @@ export interface LibraryGraph {
 	graph: import('../types/graph').GraphFile;
 }
 export interface Workspace {
-	version: 2;
+	version: 3;
+	traversalLibrary: TraversalLibrary;
 	graphs: LibraryGraph[];
 	tabs: WindowTab[];
 	activeId: string | null;
@@ -29,6 +34,10 @@ export interface Workspace {
 }
 export interface WindowProps<S> {
 	initialState: S;
+	onOpenStrategies?: (
+		input?: import('../traversal/strategyWorkspace').StrategyEditorInput
+	) => void;
+	onOpenHelp?: (topic: import('../help/topics').HelpTopic) => void;
 	onChange: (state: S) => void;
 	confirmDiscard: (action: () => void) => void;
 }

@@ -258,7 +258,7 @@ describe('loaded graph library', () => {
 			version: 1,
 			graphs: undefined
 		}).workspace;
-		expect(migrated.version).toBe(2);
+		expect(migrated.version).toBe(3);
 		expect(migrated.graphs).toHaveLength(1);
 		expect(migrated.tabs[0].graphId).toBe(migrated.graphs[0].id);
 		expect(migrated.tabs[0].state).toEqual(old.tabs[0].state);
