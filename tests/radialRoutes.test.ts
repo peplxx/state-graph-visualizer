@@ -458,6 +458,8 @@ describe('tree return routes', () => {
 	for (const file of readdirSync(
 		new URL('../examples/', import.meta.url)
 	).filter((file) => file.endsWith('.yaml'))) {
+		// Full-graph routing plus sampled SVG geometry checks can exceed Bun's
+		// default five seconds on CI. This checks correctness, not CPU speed.
 		test(`${file}: return curves avoid nodes and join continuous shared collectors`, () => {
 			const graph = parseFile(
 				readFileSync(
@@ -548,7 +550,7 @@ describe('tree return routes', () => {
 							drawnSegments(result.renderPaths.get(edge)!)
 						).not.toContain(stroke);
 			}
-		});
+		}, 15_000);
 	}
 	test('self loops, parallel returns and normal-only input keep their logical identity', () => {
 		const nodes = new Map(

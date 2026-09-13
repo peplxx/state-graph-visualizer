@@ -1,31 +1,93 @@
-# State Graph Visualizer
 
-[![Demo](https://img.shields.io/badge/-State_Graph_Visualizer-76283F?style=for-the-badge&logo=vercel&logoColor=white)](https://state-graph-visualizer-alpha.vercel.app/)
+# State Graph Visualizer
+![stgX Visualizer — state-transition graphs, highlighted states and grouped areas](docs/assets/state-graph-visualizer-banner.png)
+
+[![Demo](https://img.shields.io/badge/-Open_Visualizer-76283F?style=for-the-badge&logo=vercel&logoColor=white)](https://state-graph-visualizer-alpha.vercel.app/)
 [![CI](https://github.com/peplxx/state-graph-visualizer/actions/workflows/ci.yml/badge.svg)](https://github.com/peplxx/state-graph-visualizer/actions/workflows/ci.yml)
 
-An interactive viewer for exploring state-transition graphs and schedules in real-time systems. It works alongside [libstgx](https://github.com/peplxx/libstgx/tree/main), a C++ library for building and validating these graphs: export a graph as YAML, then open it here to explore its states, connections, and schedules.
+Explore state-transition graphs, inspect task schedules, and experiment with traversal strategies in your browser. Import a graph, open independent workspace tabs, and keep your graphs, strategies, and recordings locally between sessions.
 
-![Radial graph with a branch highlighted in burgundy](docs/screenshots/radial-overview.png)
+The visualizer works alongside [libstgx](https://github.com/peplxx/libstgx/tree/main), a C++ library for building and validating graphs of real-time systems. Export a graph as YAML, then open it here to examine its states and compare exploration orders.
 
-Use **Upload graph** to add files to your workspace, then **Open Explorer** to inspect one. The **Graphs** menu opens loaded graphs; **New window** opens the Explorer picker. Closing an Explorer keeps its graph in the library. Drag tabs to reorder or double-click to rename. Graphs and tabs restore locally in the same browser; a dot marks changes that still need **Save**.
+## Get started
 
-## Explore states and schedules
+1. Open the **[live demo](https://state-graph-visualizer-alpha.vercel.app/)** or [run locally](#run-locally).
+2. Choose **Graphs → Upload graph** and load a YAML or JSON file. Try the small [nine-state example](examples/gfp-m1-1-2-1-2.yaml) from the [example library](examples).
+3. Choose **New window → Explorer** to inspect the graph, or **New window → Traversal Simulator** to follow an exploration.
 
-Switch between radial and tree layouts, zoom into a branch, or find a node by ID. Select a state to inspect its tasks, connections, and schedule along a path from the initial state. Toggle deadline markers and export the schedule as SVG.
+The **Help** button opens illustrated guides for Explorer, the simulator, and the priority function API. Help stays in one tab; use its contents to switch topics.
+
+## Explore graphs and schedules
+
+- Switch between **radial and tree layouts**, pan, zoom, fit the graph, or find a state by ID. Return arrows route around state cards and share common segments.
+- Select a state to inspect its task values, incoming and outgoing connections, and schedule along a path from the initial state. Toggle deadline markers and export schedules as SVG.
+- Use **Ctrl / Cmd + click** for multiple selection or **Shift + drag** for lasso selection. Inspect group connectivity and compare schedules.
+- Turn a selection into a named **area**. Adjust node and area fills, borders, hatching, and labels; control their visibility through the view options.
+- Resize side panels to leave more room for the graph or its details.
 
 ![Selected state, task details, and a schedule for three tasks on two processors](docs/screenshots/state-schedule.png)
 
-## Analyze groups and create areas
+## Simulate a traversal
 
-Hold **Ctrl / Cmd** and click to add or remove nodes from a selection, or **Shift-drag** to select a group with the lasso. The sidebar shows selected IDs, internal edges, incoming and outgoing connections, and total node degrees.
+Choose a graph and a strategy, check the **Start nodes**, then press **Start traversal**. This evaluates the initial queue at step 0. **Next step** expands its first state, considers all outgoing transitions, and adds newly discovered states to the queue. Cycles and shared descendants never expand the same state twice.
 
-Click **Create area from selection** to turn the group into a named visual region, or use **Assign to Area** to move it into an existing one. Customize its label, fill, border, and hatching; toggle its visibility or use **Select nodes** to inspect the group again.
+The graph and queue show the same moment in the run: unopened nodes are faint, queued nodes carry position badges, and the current expanded node has a highlighted outline. Priorities are recalculated for the next expansion; smaller values go first.
 
-![Four selected nodes grouped into an area, with internal and external connection counts](docs/screenshots/group-analysis.png)
+![Traversal Simulator with a strategy editor, ordered queue and step timeline](public/help/traversal.png)
 
-## Import and export
+Use **Play / Pause** and playback speed to watch the process, or **To end** to compute the remaining traversal without animating every step. The timeline lets you rewind, jump to a recorded step, and inspect added states or skipped repeats. Replaying recorded steps uses their saved priorities without executing the function again.
 
-Load YAML or JSON graphs. **Save** stores graph changes in the workspace; **Download YAML** downloads a file without changing its saved status; **Export** saves the graph as SVG. Browse the [examples](examples) or read the [YAML format documentation](docs/graph-format.md). The examples were generated with the [GFP tool in libstgx](https://github.com/peplxx/libstgx/tree/main/examples/gfp), using the parameters in each file with state pruning disabled.
+Applying changed code from an earlier step preserves the completed prefix and creates a new continuation. The previous branch is automatically saved as a separate recording, so you can compare both orders.
+
+The simulator explores the supplied graph. It does not generate states or perform the pruning and schedulability analyses of the source algorithms. States unreachable from the selected starts remain unopened.
+
+## Build a strategy library
+
+Open **Strategy editor** from **New window → Traversal Simulator**, or directly from a simulator. Manage saved strategies and drafts on the left, and edit several functions in separate code tabs on the right. TypeScript highlighting, diagnostics, and **Ctrl + Space** field hints help you write priority functions.
+
+The initial library contains six editable strategies:
+
+| Strategy | Ordering rule |
+| --- | --- |
+| BFS | First discovered, first expanded: an ordinary FIFO queue. |
+| Hybrid Slack 1 | Weighted active jobs and remaining work, combined with the largest deadline. |
+| Hybrid Slack 2 | A weighted score with extra emphasis on work relative to deadlines. |
+| Slack 1 | Sum of `1 − c/d`; a zero deadline contributes `1`. |
+| Slack 2 | Total deadlines divided by total remaining work; states with no remaining work receive a very large priority. |
+| Burmuakov 2022 | More unfinished jobs first, counting tasks with `c > 0`. |
+
+A simple BFS strategy looks like this:
+
+```ts
+function priority(
+  state: TraversalState,
+  context: TraversalContext
+): Priority {
+  return state.insertionOrder;
+}
+```
+
+Return a finite number or a nonempty tuple of finite numbers. Tuples compare left to right; equal priorities preserve insertion order. Keep the same result kind and tuple length throughout a run. Inputs are read-only, imports are not supported, and evaluation runs in a separate worker with a two-second timeout. A failed evaluation leaves the unfinished step uncommitted.
+
+Save a strategy to reuse its code on any graph. Saving or editing a function does not change an existing run until you apply it. For field definitions and worked examples, open **Help → Priority function API**.
+
+## Save your workspace
+
+| Action | What it keeps |
+| --- | --- |
+| **Explorer → Save** | Commits graph edits to the local library. A dot on the tab marks unsaved edits. |
+| **Download YAML** | Downloads the graph as a file without changing its saved status. |
+| **Export** | Exports the graph as SVG. |
+| **Strategy editor → Save** | Stores a named function in your strategy library. |
+| **Inspect → Records → Save recording** | Keeps the run's graph snapshot, code versions, computed steps, and actual priorities. |
+
+Drag workspace tabs to reorder them or double-click to rename. Closing an Explorer keeps its graph in the library. Saved strategies and recordings remain available after closing their windows; removing a graph from the library does not delete a recording's snapshot.
+
+The workspace autosaves open tabs, simulator drafts, timeline positions, and view settings in this browser. Restored simulators are paused, and saved code is not executed automatically. Browser storage belongs to the current profile and site; clearing site data removes the workspace. Export graph files when you need a portable copy.
+
+## Graph format and examples
+
+See the **[YAML format documentation](docs/graph-format.md)** for states, transitions, task data, appearance, and areas. The **[example graphs](examples)** were generated with the [GFP tool in libstgx](https://github.com/peplxx/libstgx/tree/main/examples/gfp), using the parameters in each file with state pruning disabled.
 
 ## Run locally
 
@@ -36,27 +98,16 @@ bun install --frozen-lockfile
 bun run dev
 ```
 
-Open the URL printed in the terminal, upload a graph, then open it in an Explorer.
+Open the URL printed in the terminal. The application uses React, TypeScript, Vite, D3, and CodeMirror, with IndexedDB for the local workspace.
 
-## Checks
+## Development checks
 
 ```sh
-bun run build      # TypeScript checks and production build
-bun run test       # Workspace state and persistence tests
-bun run lint       # Oxlint errors and warnings
-bun run fmt:check  # Formatting check
+bun run build                     # TypeScript checks and production build
+bun run test                      # Traversal, routing, strategies and workspace tests
+bun run lint                      # Oxlint errors and warnings
+bun run fmt:check                 # Formatting check
+bun run schema:validate examples  # Validate example graphs
 ```
 
-GitHub Actions runs these checks on pushes and pull requests. Run `bun run fmt` to fix formatting locally; file exclusions are defined in `.oxfmtrc.json`.
-
-## Simulate a traversal
-
-Choose **New window → Traversal Simulator**, then a loaded graph. Each simulator is independent of Explorer and other runs. Select start nodes if needed and press **Start traversal** to evaluate the initial queue.
-
-Write a synchronous TypeScript `priority(state, context)` function returning a finite number or a non-empty tuple of finite numbers. Smaller values come first; tuples compare left to right and equal priorities preserve insertion order. The result kind and tuple length must remain consistent throughout a run. The editor checks types and offers field completions with **Ctrl+Space**. Inputs are read-only; use a pure function for reproducible new runs. Imports are not supported, and a priority evaluation exceeding two seconds is stopped in a worker without committing the unfinished step.
-
-Each step expands the first queued node, considers all its outgoing transitions (including returns), adds newly discovered states once, and evaluates the remaining queue for the next step. `state` includes flattened task data (`c`, `d`, `release`), `depth`, `parentId`, and `insertionOrder`. `context` includes `graph`, `system`, `step`, `expandedIds`, and insertion-ordered `queueIds`. BFS, DFS, and most-pending-jobs examples are included. This explores the supplied graph; it does not generate new states or implement pruning/schedulability tests from the papers.
-
-Use **Next step**, **Play**, or **To end**, and rewind with the timeline. The queue and node badges show the priorities at the selected step. Applying changed code starts a new branch at that step and automatically saves the previous branch in **Records**. Replay reads recorded results without executing the draft. Continuing beyond the computed history evaluates the active recorded strategy.
-
-Save named strategies to use with any graph. **Save recording** keeps a run, its strategy revisions, and a graph snapshot independently of tabs and the graph library. Saved records are also accessible through **New window → Traversal Simulator → Open saved recordings**. The workspace, draft, timeline position, and view autosave in this browser and restore paused. Storage errors are reported without discarding the in-memory session.
+GitHub Actions runs these checks on pushes and pull requests. Use `bun run fmt` to format source files; exclusions are defined in `.oxfmtrc.json`.
